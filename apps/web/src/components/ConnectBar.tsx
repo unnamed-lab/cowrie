@@ -15,18 +15,13 @@ export function ConnectBar() {
     return (
       <div className="flex items-center gap-3">
         {chain && chain.id !== 11155111 && (
-          <span className="text-sm" style={{ color: "var(--color-coral)" }}>
-            Switch to Sepolia
-          </span>
+          <span className="chip border-coral/40 text-coral-soft">Switch to Sepolia</span>
         )}
-        <span className="handle" style={{ color: "var(--color-shell)" }}>
-          {short(address)}
+        <span className="chip">
+          <span className="h-2 w-2 rounded-full bg-sea" aria-hidden />
+          <span className="handle text-shell">{short(address)}</span>
         </span>
-        <button
-          onClick={() => disconnect()}
-          className="rounded-full border px-4 py-2 text-sm"
-          style={{ borderColor: "var(--color-muted)", color: "var(--color-shell)" }}
-        >
+        <button onClick={() => disconnect()} className="btn btn-ghost">
           Disconnect
         </button>
       </div>
@@ -37,8 +32,7 @@ export function ConnectBar() {
     <button
       onClick={() => injected && connect({ connector: injected })}
       disabled={isPending || !injected}
-      className="rounded-full px-5 py-2 text-sm font-medium"
-      style={{ background: "var(--color-coral)", color: "var(--color-ink)" }}
+      className="btn btn-primary"
     >
       {isPending ? "Connecting…" : "Connect wallet"}
     </button>

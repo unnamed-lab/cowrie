@@ -4,14 +4,16 @@ import { useState } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { encryptAmount } from "@/fhe/useEncrypt";
 import { publicDecryptReached } from "@/fhe/usePublicDecrypt";
-import {
-  CROWDFUND_ABI,
-  TOKEN_ABI,
-  useCowrieAddresses,
-  operatorUntil,
-} from "@/lib/contracts";
+import { CROWDFUND_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
 import { CROWDFUND_STATE } from "@cowrie/shared";
-import { ModeCard, AmountRow, StatusLine } from "./ui";
+import { ModeCard, AmountRow, StatusLine, useStatus } from "./ui";
+
+const STATE_TONE: Record<string, string> = {
+  Active: "text-sea",
+  Deciding: "text-gold",
+  Succeeded: "text-sea",
+  Failed: "text-coral-soft",
+};
 
 /**
  * Pools — confidential crowdfunding. Contributions accumulate encrypted; the only
@@ -22,12 +24,12 @@ export function Pools() {
   const { address } = useAccount();
   const { addresses, configured } = useCowrieAddresses();
   const { writeContractAsync, isPending } = useWriteContract();
+  const s = useStatus();
 
   const crowdfund = addresses?.Crowdfund as `0x${string}` | undefined;
   const token = addresses?.ConfidentialUSDT as `0x${string}` | undefined;
 
   const [amount, setAmount] = useState("250000");
-  const [status, setStatus] = useState("");
 
   const { data: state } = useReadContract({
     abi: CROWDFUND_ABI,
@@ -41,81 +43,87 @@ export function Pools() {
     functionName: "goal",
     query: { enabled: !!crowdfund && configured },
   });
-
-  const stateName = state !== undefined ? CROWDFUND_STATE[Number(state)] : "—";
-
-  async function approve() {
-    if (!token || !crowdfund) return;
-    setStatus("Approving campaign to move your cUSDT…");
-    await writeContractAsync({
-      abi: TOKEN_ABI,
-      address: token,
-      functionName: "setOperator",
-      args: [crowdfund, operatorUntil()],
-    });
-    setStatus("Campaign approved.");
-  }
-
-  async function contribute() {
-    if (!address || !crowdfund) return;
-    try {
-      setStatus("Encrypting your contribution…");
-      const { handle, inputProof } = await encryptAmount(crowdfund, address, BigInt(amount));
-      setStatus("Contributing privately…");
-      await writeContractAsync({
-        abi: CROWDFUND_ABI,
-        address: crowdfund,
-        functionName: "contribute",
-        args: [handle, inputProof],
-      });
-      setStatus("Contributed. Your amount is hidden; only the goal/total comparison is ever revealed.");
-    } catch (e) {
-      setStatus(`Failed: ${(e as Error).message}`);
-    }
-  }
-
-  async function finalize() {
-    if (!crowdfund) return;
-    try {
-      setStatus("Finalizing — computing goal-reached on the encrypted total…");
-      await writeContractAsync({ abi: CROWDFUND_ABI, address: crowdfund, functionName: "finalize", args: [] });
-      setStatus("Finalized. Now reveal & settle the goal boolean.");
-    } catch (e) {
-      setStatus(`Failed: ${(e as Error).message}`);
-    }
-  }
-
-  /** Read the published handle, publicly decrypt it, and submit the proof on-chain. */
-  async function revealAndSettle() {
-    if (!crowdfund) return;
-    try {
-      setStatus("Fetching the encrypted goal-reached handle…");
-      const handle = (await readReached(crowdfund)) as string;
-      setStatus("Publicly decrypting (KMS) the single boolean…");
-      const { reached, cleartexts, decryptionProof } = await publicDecryptReached(handle);
-      setStatus(`Goal reached: ${reached}. Submitting proof on-chain…`);
-      await writeContractAsync({
-        abi: CROWDFUND_ABI,
-        address: crowdfund,
-        functionName: "settle",
-        args: [cleartexts, decryptionProof],
-      });
-      setStatus(`Settled — campaign ${reached ? "Succeeded" : "Failed"}.`);
-    } catch (e) {
-      setStatus(`Failed: ${(e as Error).message}`);
-    }
-  }
-
-  // Inline read via wagmi's core would need a client; we read through a fresh hook call.
   const { refetch: refetchReached } = useReadContract({
     abi: CROWDFUND_ABI,
     address: crowdfund,
     functionName: "reachedHandle",
     query: { enabled: false },
   });
-  async function readReached(_addr: string) {
-    const r = await refetchReached();
-    return r.data;
+
+  const stateName = state !== undefined ? CROWDFUND_STATE[Number(state)] : "—";
+
+  async function approve() {
+    if (!token || !crowdfund) return;
+    try {
+      s.working("Approving the campaign to move your cUSDT…");
+      await writeContractAsync({
+        abi: TOKEN_ABI,
+        address: token,
+        functionName: "setOperator",
+        args: [crowdfund, operatorUntil()],
+      });
+      s.done("Campaign approved.");
+    } catch (e) {
+      s.error((e as Error).message);
+    }
+  }
+
+  async function contribute() {
+    if (!address || !crowdfund) return;
+    try {
+      s.working("Encrypting your contribution…");
+      const { handle, inputProof } = await encryptAmount(crowdfund, address, BigInt(amount));
+      s.working("Contributing privately…");
+      await writeContractAsync({
+        abi: CROWDFUND_ABI,
+        address: crowdfund,
+        functionName: "contribute",
+        args: [handle, inputProof],
+      });
+      s.done("Contributed. Only the goal/total comparison is ever revealed — never your amount.");
+    } catch (e) {
+      s.error((e as Error).message);
+    }
+  }
+
+  async function finalize() {
+    if (!crowdfund) return;
+    try {
+      s.working("Finalizing — comparing the encrypted total against the goal…");
+      await writeContractAsync({ abi: CROWDFUND_ABI, address: crowdfund, functionName: "finalize", args: [] });
+      s.done("Finalized. Now reveal & settle the goal boolean.");
+    } catch (e) {
+      s.error((e as Error).message);
+    }
+  }
+
+  /** Read the published handle, publicly decrypt it, submit the KMS proof on-chain. */
+  async function revealAndSettle() {
+    if (!crowdfund) return;
+    try {
+      s.working("Fetching the encrypted goal-reached handle…");
+      const { data: handle } = await refetchReached();
+      if (!handle) throw new Error("No handle yet — finalize first.");
+      s.working("Publicly decrypting the single boolean (KMS)…");
+      const { reached, cleartexts, decryptionProof } = await publicDecryptReached(handle as string);
+      s.working(`Goal reached: ${reached}. Submitting the proof on-chain…`);
+      await writeContractAsync({
+        abi: CROWDFUND_ABI,
+        address: crowdfund,
+        functionName: "settle",
+        args: [cleartexts, decryptionProof],
+      });
+      s.done(`Settled — campaign ${reached ? "Succeeded" : "Failed"}.`);
+    } catch (e) {
+      s.error((e as Error).message);
+    }
+  }
+
+  function action(fn: "release" | "refund") {
+    if (!crowdfund) return;
+    writeContractAsync({ abi: CROWDFUND_ABI, address: crowdfund, functionName: fn, args: [] })
+      .then(() => s.done(fn === "release" ? "Released to the beneficiary." : "Refund sent."))
+      .catch((e) => s.error((e as Error).message));
   }
 
   return (
@@ -123,47 +131,43 @@ export function Pools() {
       title="Pools"
       lede="Confidential crowdfunding. Contributions stay encrypted; only a single boolean — goal reached or not — is ever revealed."
       configured={configured}
+      badge={
+        <span className={`chip ${STATE_TONE[stateName] ?? ""}`}>
+          <span className="h-2 w-2 rounded-full bg-current" aria-hidden /> {stateName}
+        </span>
+      }
     >
-      <div className="mb-5 flex flex-wrap items-center gap-4">
-        <span className="rounded-full px-3 py-1 text-sm" style={{ background: "var(--color-ink)", color: "var(--color-gold)" }}>
-          State: {stateName}
-        </span>
-        <span className="text-sm" style={{ color: "var(--color-muted)" }}>
-          Goal: {String(goal ?? 0n)} cUSDT
-        </span>
+      <div className="mb-6 flex items-baseline gap-2 rounded-2xl bg-ink/60 px-5 py-4">
+        <span className="text-xs uppercase tracking-wider text-muted">Public goal</span>
+        <span className="font-display text-2xl text-gold">{Number(goal ?? 0n).toLocaleString()}</span>
+        <span className="text-sm text-muted">cUSDT</span>
       </div>
-      <button
-        onClick={approve}
-        className="mb-4 rounded-full border px-4 py-2 text-sm"
-        style={{ borderColor: "var(--color-muted)", color: "var(--color-shell)" }}
-      >
-        Approve campaign
-      </button>
-      <AmountRow value={amount} onChange={setAmount} onSubmit={contribute} cta="Contribute privately" busy={isPending} />
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        <button onClick={finalize} className="rounded-full border px-4 py-2 text-sm" style={{ borderColor: "var(--color-muted)", color: "var(--color-shell)" }}>
-          Finalize (after deadline)
+      <div className="flex flex-col gap-4">
+        <button onClick={approve} className="btn btn-ghost self-start">
+          Approve campaign
         </button>
-        <button onClick={revealAndSettle} className="rounded-full border px-4 py-2 text-sm" style={{ borderColor: "var(--color-muted)", color: "var(--color-shell)" }}>
-          Reveal &amp; settle
-        </button>
-        <button
-          onClick={() => crowdfund && writeContractAsync({ abi: CROWDFUND_ABI, address: crowdfund, functionName: "release", args: [] })}
-          className="rounded-full border px-4 py-2 text-sm"
-          style={{ borderColor: "var(--color-muted)", color: "var(--color-shell)" }}
-        >
-          Release (if succeeded)
-        </button>
-        <button
-          onClick={() => crowdfund && writeContractAsync({ abi: CROWDFUND_ABI, address: crowdfund, functionName: "refund", args: [] })}
-          className="rounded-full border px-4 py-2 text-sm"
-          style={{ borderColor: "var(--color-muted)", color: "var(--color-shell)" }}
-        >
-          Refund (if failed)
-        </button>
+        <AmountRow value={amount} onChange={setAmount} onSubmit={contribute} cta="Contribute privately" busy={isPending} />
       </div>
-      <StatusLine status={status} />
+
+      <div className="mt-6 border-t border-shell/10 pt-5">
+        <p className="mb-3 text-xs uppercase tracking-wider text-muted">Lifecycle</p>
+        <div className="flex flex-wrap gap-2.5">
+          <button onClick={finalize} className="btn btn-ghost">
+            Finalize
+          </button>
+          <button onClick={revealAndSettle} className="btn btn-ghost">
+            Reveal &amp; settle
+          </button>
+          <button onClick={() => action("release")} className="btn btn-ghost">
+            Release
+          </button>
+          <button onClick={() => action("refund")} className="btn btn-ghost">
+            Refund
+          </button>
+        </div>
+      </div>
+      <StatusLine status={s.status} kind={s.kind} />
     </ModeCard>
   );
 }
