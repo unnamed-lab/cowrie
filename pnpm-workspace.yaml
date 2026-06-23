@@ -3,11 +3,11 @@ packages:
   - "apps/*"
 
 allowBuilds:
-  bufferutil: set this to true or false
-  keccak: set this to true or false
-  secp256k1: set this to true or false
-  sharp: set this to true or false
-  utf-8-validate: set this to true or false
+  bufferutil: true
+  keccak: true
+  secp256k1: true
+  sharp: true
+  utf-8-validate: true
 
 # Native/post-install build scripts we explicitly trust (pnpm gates these by default).
 onlyBuiltDependencies:
