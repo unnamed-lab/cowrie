@@ -70,6 +70,8 @@ const config: HardhatUserConfig = {
       },
       chainId: 11155111,
       url: SEPOLIA_RPC_URL,
+      // Cap gas price low (Sepolia base fee is sub-gwei) to fit modest balances.
+      gasPrice: Number(process.env.SEPOLIA_GAS_PRICE ?? 1_000_000_000),
     },
   },
   paths: {
