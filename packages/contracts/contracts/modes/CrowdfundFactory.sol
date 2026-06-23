@@ -2,10 +2,13 @@
 pragma solidity ^0.8.27;
 
 import {Crowdfund} from "./Crowdfund.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title CrowdfundFactory
 /// @notice Deployer and registry for dynamic Crowdfund campaigns with spam prevention.
-contract CrowdfundFactory {
+/// @dev The creation fee is anti-spam, not revenue; the owner can withdraw the
+///      accumulated fees (so funds are never permanently locked).
+contract CrowdfundFactory is Ownable {
     address[] public allCampaigns;
     mapping(address => address[]) private _userCampaigns;
     mapping(address => bool) public isDeployedCampaign;
@@ -21,6 +24,9 @@ contract CrowdfundFactory {
         uint64 goal,
         uint256 duration
     );
+    event FeesWithdrawn(address indexed to, uint256 amount);
+
+    constructor() Ownable(msg.sender) {}
 
     /**
      * @notice Deploy a new Crowdfund campaign with spam prevention.
@@ -66,5 +72,17 @@ contract CrowdfundFactory {
      */
     function getCampaignsCount() external view returns (uint256) {
         return allCampaigns.length;
+    }
+
+    /**
+     * @notice Withdraw accumulated anti-spam creation fees to `to`.
+     * @dev Owner-only; prevents fees from being permanently locked in the factory.
+     */
+    function withdrawFees(address payable to) external onlyOwner {
+        require(to != address(0), "zero address");
+        uint256 amount = address(this).balance;
+        (bool ok, ) = to.call{value: amount}("");
+        require(ok, "withdraw failed");
+        emit FeesWithdrawn(to, amount);
     }
 }
