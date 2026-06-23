@@ -105,6 +105,20 @@ export const CIRCLE_ABI = [
     inputs: [],
     outputs: [{ name: "", type: "address" }],
   },
+  {
+    type: "function",
+    name: "name",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    type: "function",
+    name: "factory",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
 ] as const;
 
 export const PAYROLL_ABI = [
@@ -143,6 +157,20 @@ export const PAYROLL_ABI = [
     stateMutability: "view",
     inputs: [{ name: "", type: "address" }],
     outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "period",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "organizer",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
   },
 ] as const;
 
@@ -187,7 +215,119 @@ export const CROWDFUND_ABI = [
     inputs: [{ name: "who", type: "address" }],
     outputs: [{ name: "", type: "bytes32" }],
   },
+  {
+    type: "function",
+    name: "beneficiary",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
 ] as const;
 
 /** Crowdfund.state() enum order. */
 export const CROWDFUND_STATE = ["Active", "Deciding", "Succeeded", "Failed"] as const;
+
+export const FACTORY_ABI = [
+  {
+    type: "function",
+    name: "createCircle",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "name", type: "string" },
+      { name: "initialMembers", type: "address[]" },
+    ],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "getUserCircles",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "address[]" }],
+  },
+  {
+    type: "function",
+    name: "getCirclesCount",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "allCircles",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+export const CROWDFUND_FACTORY_ABI = [
+  {
+    type: "function",
+    name: "createCampaign",
+    stateMutability: "payable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "beneficiary", type: "address" },
+      { name: "goal", type: "uint64" },
+      { name: "duration", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "getUserCampaigns",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "address[]" }],
+  },
+  {
+    type: "function",
+    name: "getCampaignsCount",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "allCampaigns",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+export const PAYROLL_FACTORY_ABI = [
+  {
+    type: "function",
+    name: "createStream",
+    stateMutability: "payable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "period", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "getUserStreams",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "address[]" }],
+  },
+  {
+    type: "function",
+    name: "getStreamsCount",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "allStreams",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
