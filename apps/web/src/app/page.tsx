@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ConnectBar } from "@/components/ConnectBar";
 import { Circles } from "@/components/Circles";
 import { Streams } from "@/components/Streams";
 import { Pools } from "@/components/Pools";
+import { QuickStart } from "@/components/QuickStart";
+import { BalancePill } from "@/components/BalancePill";
 import { CowrieIcon } from "@/components/CowrieIcon";
 import { useAccount, useReadContract, useWriteContract, useSignTypedData } from "wagmi";
 import { TOKEN_ABI, useCowrieAddresses } from "@/lib/contracts";
@@ -22,6 +24,27 @@ type ModeKey = (typeof MODES)[number]["key"];
 
 export default function Home() {
   const [mode, setMode] = useState<ModeKey>("circles");
+
+  // First-visit onboarding guide (remembered via localStorage; mounted-gated to
+  // avoid an SSR/client hydration mismatch).
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window !== "undefined" && !localStorage.getItem("cowrie_guide_seen")) {
+      setGuideOpen(true);
+    }
+  }, []);
+  function closeGuide() {
+    setGuideOpen(false);
+    if (typeof window !== "undefined") localStorage.setItem("cowrie_guide_seen", "1");
+  }
+  function openFaucet() {
+    setFaucetOpen(true);
+    if (typeof document !== "undefined") {
+      document.getElementById("faucet")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
   const { address, isConnected } = useAccount();
   const { addresses, configured } = useCowrieAddresses();
   const token = addresses?.ConfidentialUSDT as `0x${string}` | undefined;
@@ -105,7 +128,17 @@ export default function Home() {
               <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-muted font-bold">Confidential group treasury</p>
             </div>
           </div>
-          <ConnectBar />
+          <div className="flex flex-wrap items-center gap-3">
+            {isConnected && configured && (
+              <BalancePill
+                hasHandle={!!balanceHandle}
+                decrypted={decryptedBalance}
+                decrypting={decrypting}
+                onReveal={performDecryption}
+              />
+            )}
+            <ConnectBar />
+          </div>
         </header>
 
         {/* Hero */}
@@ -130,8 +163,19 @@ export default function Home() {
               <LinkIcon className="h-3.5 w-3.5 text-sea" />
               <span>Sepolia</span>
             </span>
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="chip cursor-pointer transition-colors hover:border-gold/40 hover:text-gold"
+              type="button"
+            >
+              <span aria-hidden>?</span>
+              <span>New here? Quick start</span>
+            </button>
           </div>
         </section>
+
+        {/* Onboarding guide */}
+        {mounted && guideOpen && <QuickStart onGetFunds={openFaucet} onClose={closeGuide} />}
 
         {/* Mode tabs */}
         <nav
@@ -176,7 +220,7 @@ export default function Home() {
       <div className="mt-12 flex flex-col items-center gap-6 text-center text-xs text-muted">
         {/* Collapsible Test Faucet Drawer */}
         {configured && (
-          <div className="w-full max-w-2xl bg-surface/50 border border-shell/5 rounded-2xl overflow-hidden shadow-lg backdrop-blur-md transition-all duration-300">
+          <div id="faucet" className="w-full max-w-2xl bg-surface/50 border border-shell/5 rounded-2xl overflow-hidden shadow-lg backdrop-blur-md transition-all duration-300 scroll-mt-6">
             <button
               onClick={() => setFaucetOpen(!faucetOpen)}
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-2/30 transition-colors font-semibold text-shell-dim hover:text-shell cursor-pointer"
