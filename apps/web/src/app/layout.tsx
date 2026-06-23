@@ -31,7 +31,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
-      <body>
+      {/* Browser extensions (Grammarly, etc.) inject attributes onto <body> after
+          the server render, which React would otherwise flag as a hydration
+          mismatch. Suppressing here is the recommended, narrowly-scoped fix. */}
+      <body suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>
