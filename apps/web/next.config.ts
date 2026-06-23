@@ -36,6 +36,7 @@ const nextConfig: NextConfig = {
       { message: /Critical dependency: the request of a dependency is an expression/ },
       { message: /Can't resolve '@react-native-async-storage\/async-storage'/ },
       { message: /Can't resolve 'pino-pretty'/ },
+      { message: /Circular dependency between chunks with runtime/ },
     ];
 
     return config;

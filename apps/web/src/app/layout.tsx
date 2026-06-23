@@ -10,16 +10,21 @@ const display = Fraunces({
   variable: "--font-display",
   axes: ["opsz", "SOFT"],
   style: ["normal", "italic"],
+  display: "swap",
+  fallback: ["Georgia", "ui-serif", "serif"],
 });
 const body = Hanken_Grotesk({
   subsets: ["latin"],
   variable: "--font-body",
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],
 });
 const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
   weight: ["400", "500"],
+  display: "swap",
+  fallback: ["ui-monospace", "SFMono-Regular", "monospace"],
 });
 
 export const metadata: Metadata = {
