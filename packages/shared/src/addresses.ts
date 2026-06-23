@@ -13,8 +13,8 @@ export const ADDRESSES = {
     PayrollStreams: "0x17037e134a8Ef4a79A9a37c0Df6C0a3d758A2B2d",
     Crowdfund: "0xbF3B0Db37498B4CA0902e6Fe92f75BDD7e4252fb",
     SavingsCircleFactory: "0x29c73523715481DF8D3efcbB9ae4007DDF0a38dd",
-    CrowdfundFactory: "0x1507Ec79d49647dc9f4AdA53dD851e9Da4CBEDD1",
-    PayrollStreamsFactory: "0xD5551aA08128555Bc522b506240F77fEef2cb463",
+    CrowdfundFactory: "0x138c6F5cF81da96aeb8B25EC61109687fdA98872",
+    PayrollStreamsFactory: "0xe0AFccDEC573DE5C96484795AF38a63C78255b2c",
   },
 } as const;
 
