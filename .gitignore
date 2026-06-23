@@ -24,3 +24,7 @@ apps/web/next-env.d.ts
 # misc
 .DS_Store
 *.log
+
+# Local-only product/marketing docs (not part of the repo)
+.agents/
+SUBMISSION.md
