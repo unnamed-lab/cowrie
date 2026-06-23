@@ -129,7 +129,7 @@ export function Pools() {
   return (
     <ModeCard
       title="Pools"
-      lede="Confidential crowdfunding. Contributions stay encrypted; only a single boolean — goal reached or not — is ever revealed."
+      lede="Confidential community crowdfunding (Harambee). Contributions stay encrypted; only a single boolean — goal reached or not — is ever revealed."
       configured={configured}
       badge={
         <span className={`chip ${STATE_TONE[stateName] ?? ""}`}>

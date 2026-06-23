@@ -12,10 +12,10 @@
 
   --color-shell: #f4ecdd;
   --color-shell-dim: #cfc6b8;
-  --color-coral: #e6764e;
-  --color-coral-soft: #f0a07f;
-  --color-gold: #d4ab36;
-  --color-sea: #4bb1a3;
+  --color-coral: #db5a30;
+  --color-coral-soft: #f48c66;
+  --color-gold: #c6941f;
+  --color-sea: #3ba28a;
   --color-muted: #7c7791;
 
   --font-display: var(--font-display), ui-serif, Georgia, serif;
@@ -45,9 +45,9 @@ body {
   position: relative;
   min-height: 100dvh;
   background-image:
-    radial-gradient(60% 50% at 18% 0%, rgba(230, 118, 78, 0.16), transparent 70%),
-    radial-gradient(55% 45% at 100% 8%, rgba(75, 177, 163, 0.12), transparent 70%),
-    radial-gradient(80% 60% at 50% 120%, rgba(212, 171, 54, 0.08), transparent 70%);
+    radial-gradient(60% 50% at 18% 0%, rgba(219, 90, 48, 0.18), transparent 70%),
+    radial-gradient(55% 45% at 100% 8%, rgba(59, 162, 138, 0.12), transparent 70%),
+    radial-gradient(80% 60% at 50% 120%, rgba(198, 148, 31, 0.08), transparent 70%);
 }
 body::before {
   content: "";
@@ -55,8 +55,18 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.4;
+  opacity: 0.35;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60' fill='none'%3E%3Cpath d='M30 0 L60 30 L30 60 L0 30 Z M30 6 L54 30 L30 54 L6 30 Z' stroke='rgb(244, 236, 221)' stroke-width='0.75'/%3E%3Cpath d='M0 0 L60 60 M60 0 L0 60' stroke='rgb(244, 236, 221)' stroke-width='0.4' stroke-dasharray='2 2'/%3E%3C/svg%3E");
   mix-blend-mode: overlay;
 }
 
@@ -80,68 +90,85 @@ body::before {
 @layer components {
   .card {
     position: relative;
-    background:
-      linear-gradient(180deg, rgba(244, 236, 221, 0.03), transparent 40%),
-      var(--color-surface);
-    border: 1px solid rgba(244, 236, 221, 0.09);
+    background: linear-gradient(180deg, rgba(244, 236, 221, 0.04) 0%, rgba(27, 24, 48, 0.75) 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(244, 236, 221, 0.08);
     border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: 
+      0 1px 0 0 rgba(244, 236, 221, 0.05) inset, 
+      0 8px 32px 0 rgba(0, 0, 0, 0.4),
+      0 24px 60px -32px rgba(0, 0, 0, 0.8);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
   }
 
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
     border-radius: 999px;
-    padding: 0.6rem 1.15rem;
+    padding: 0.65rem 1.35rem;
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1;
-    transition:
-      transform 0.15s ease,
-      background-color 0.2s ease,
-      border-color 0.2s ease,
-      opacity 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     cursor: pointer;
   }
   .btn:active {
-    transform: translateY(1px);
+    transform: scale(0.96) translateY(1px);
   }
   .btn:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
+    transform: none !important;
   }
   .btn-primary {
-    background: linear-gradient(180deg, var(--color-coral-soft), var(--color-coral));
-    color: #2a1207;
-    box-shadow: var(--shadow-pop);
+    background: linear-gradient(135deg, var(--color-coral-soft) 0%, var(--color-coral) 100%);
+    color: #1a0b04;
+    border: 1px solid rgba(240, 160, 127, 0.2);
+    box-shadow: 
+      0 2px 4px rgba(230, 118, 78, 0.15),
+      0 12px 24px -10px rgba(230, 118, 78, 0.4);
   }
   .btn-primary:hover:not(:disabled) {
-    transform: translateY(-1px);
+    transform: scale(1.03) translateY(-1px);
+    box-shadow: 
+      0 4px 12px rgba(230, 118, 78, 0.25),
+      0 20px 32px -8px rgba(230, 118, 78, 0.55);
+    border-color: var(--color-coral-soft);
   }
   .btn-ghost {
-    background: transparent;
+    background: rgba(244, 236, 221, 0.02);
     color: var(--color-shell);
-    border: 1px solid rgba(244, 236, 221, 0.18);
+    border: 1px solid rgba(244, 236, 221, 0.12);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
   .btn-ghost:hover:not(:disabled) {
+    background: rgba(244, 236, 221, 0.08);
     border-color: var(--color-gold);
     color: var(--color-gold);
+    box-shadow: 0 0 16px rgba(212, 171, 54, 0.18);
+    transform: scale(1.02) translateY(-1px);
   }
 
   .field {
-    background: var(--color-ink);
-    border: 1px solid rgba(244, 236, 221, 0.12);
+    background: rgba(16, 14, 26, 0.55);
+    border: 1px solid rgba(244, 236, 221, 0.09);
     border-radius: 0.85rem;
     color: var(--color-shell);
-    padding: 0.65rem 0.9rem;
+    padding: 0.7rem 1rem;
     font-variant-numeric: tabular-nums;
-    transition: border-color 0.2s ease;
+    transition: all 0.2s ease;
   }
   .field:focus {
     outline: none;
     border-color: var(--color-gold);
+    background: rgba(16, 14, 26, 0.75);
+    box-shadow: 
+      0 0 0 1px rgba(212, 171, 54, 0.2),
+      0 0 14px rgba(212, 171, 54, 0.15);
   }
   .field::placeholder {
     color: var(--color-muted);
@@ -152,11 +179,13 @@ body::before {
     align-items: center;
     gap: 0.4rem;
     border-radius: 999px;
-    padding: 0.3rem 0.7rem;
+    padding: 0.35rem 0.8rem;
     font-size: 0.75rem;
     font-weight: 600;
-    background: rgba(244, 236, 221, 0.06);
-    border: 1px solid rgba(244, 236, 221, 0.1);
+    background: rgba(244, 236, 221, 0.03);
+    border: 1px solid rgba(244, 236, 221, 0.07);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 
   /* Ciphertext handle — privacy made into a deliberate visual. */
@@ -166,6 +195,7 @@ body::before {
     letter-spacing: 0.02em;
     color: var(--color-sea);
     word-break: break-all;
+    text-shadow: 0 0 8px rgba(75, 177, 163, 0.15);
   }
 }
 

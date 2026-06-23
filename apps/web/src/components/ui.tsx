@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useState } from "react";
+import { LockIcon, CheckIcon, AlertIcon } from "./Icons";
 
 export type StatusKind = "idle" | "working" | "done" | "error";
 
@@ -31,12 +32,16 @@ export function ModeCard({
   children: ReactNode;
 }) {
   return (
-    <section className="card rise overflow-hidden p-6 sm:p-8">
+    <section className="card rise overflow-hidden p-6 sm:p-8 relative">
+      {/* Decorative ambient gold glow on top-right of cards */}
+      <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-gold/5 blur-[50px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 -z-10 h-32 w-32 rounded-full bg-coral/5 blur-[60px] pointer-events-none" />
+
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <span className="mb-3 block h-px w-10 bg-gold/70" />
-          <h2 className="font-display text-3xl font-semibold tracking-tight">{title}</h2>
-          <p className="mt-2 max-w-prose text-sm leading-relaxed text-shell-dim">{lede}</p>
+          <span className="mb-3 block h-px w-10 bg-gradient-to-r from-gold to-transparent" />
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-gradient bg-gradient-to-r from-shell via-shell-dim to-gold bg-clip-text text-transparent">{title}</h2>
+          <p className="mt-2 max-w-prose text-sm leading-relaxed text-shell-dim font-medium">{lede}</p>
         </div>
         {badge}
       </div>
@@ -70,21 +75,21 @@ export function AmountRow({
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
+      <label className="flex flex-col gap-1.5 text-xs font-semibold text-muted tracking-wider uppercase">
         {label}
-        <span className="relative flex items-center">
+        <span className="relative flex items-center mt-1">
           <input
             value={value}
             onChange={(e) => onChange(e.target.value)}
             inputMode="numeric"
             className="field w-full pr-16 text-base sm:w-52"
           />
-          <span className="pointer-events-none absolute right-3 text-xs font-semibold text-muted">cUSDT</span>
+          <span className="pointer-events-none absolute right-4 text-xs font-bold text-gold">cUSDT</span>
         </span>
       </label>
-      <button onClick={onSubmit} disabled={busy} className="btn btn-primary">
-        {busy ? <Spinner /> : <span aria-hidden>🔒</span>}
-        {busy ? "Working…" : cta}
+      <button onClick={onSubmit} disabled={busy} className="btn btn-primary self-start sm:self-auto">
+        {busy ? <Spinner /> : <LockIcon className="h-3.5 w-3.5" />}
+        {busy ? "Encrypting..." : cta}
       </button>
     </div>
   );
@@ -93,15 +98,29 @@ export function AmountRow({
 /** Stateful status line for the multi-second encrypt/decrypt round-trips. */
 export function StatusLine({ status, kind = "idle" }: { status: string; kind?: StatusKind }) {
   if (!status) return null;
-  const tone =
-    kind === "error" ? "text-coral-soft" : kind === "done" ? "text-sea" : "text-shell-dim";
+
+  const config = {
+    idle: { bg: "bg-surface-2/20 border-surface-2/60", text: "text-shell-dim", icon: <span className="text-xs">i</span> },
+    working: { bg: "bg-gold/5 border-gold/20", text: "text-gold", icon: null },
+    done: { bg: "bg-sea/5 border-sea/25", text: "text-sea", icon: <CheckIcon className="h-3 w-3" /> },
+    error: { bg: "bg-coral/5 border-coral/20", text: "text-coral-soft", icon: <AlertIcon className="h-3 w-3" /> },
+  }[kind];
+
   return (
-    <p className={`mt-5 flex items-center gap-2 text-sm ${tone}`} role="status" aria-live="polite">
-      {kind === "working" && <Spinner />}
-      {kind === "done" && <span aria-hidden>✓</span>}
-      {kind === "error" && <span aria-hidden>⚠</span>}
-      <span>{status}</span>
-    </p>
+    <div 
+      className={`mt-5 flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition-all duration-300 ${config.bg} ${config.text}`}
+      role="status" 
+      aria-live="polite"
+    >
+      {kind === "working" ? (
+        <Spinner />
+      ) : (
+        <span className="font-bold text-sm h-5 w-5 rounded-full flex items-center justify-center bg-current/10" aria-hidden>
+          {config.icon}
+        </span>
+      )}
+      <span className="flex-1 font-semibold leading-snug">{status}</span>
+    </div>
   );
 }
 
@@ -110,16 +129,16 @@ export function HandleChip({ handle, label = "on-chain" }: { handle?: string; la
   const short = handle && handle.length > 14 ? `${handle.slice(0, 8)}…${handle.slice(-4)}` : handle ?? "—";
   return (
     <span className="chip" title={handle}>
-      <span aria-hidden>🔒</span>
+      <LockIcon className="h-3 w-3 text-gold" />
       <span className="handle">{short}</span>
-      <span className="text-[0.65rem] font-normal text-muted">{label}</span>
+      <span className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">{label}</span>
     </span>
   );
 }
 
 export function Spinner() {
   return (
-    <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <svg className="h-4 w-4 animate-spin text-current" viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
       <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
     </svg>

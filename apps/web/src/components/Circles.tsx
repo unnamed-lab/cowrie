@@ -78,7 +78,7 @@ export function Circles() {
   return (
     <ModeCard
       title="Circles"
-      lede="A rotating savings group. Everyone contributes; one member collects each round. Amounts stay private."
+      lede="A rotating savings group (ROSCA / Esusu / Chama / Stokvel). Everyone contributes; one member collects the pot each round. Amounts stay private."
       configured={configured}
     >
       <div className="mb-6 rounded-2xl bg-ink/60 p-5">

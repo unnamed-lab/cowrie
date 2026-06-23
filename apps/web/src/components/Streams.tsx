@@ -5,6 +5,7 @@ import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { encryptAmount } from "@/fhe/useEncrypt";
 import { PAYROLL_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
 import { ModeCard, AmountRow, StatusLine, useStatus } from "./ui";
+import { LockIcon } from "./Icons";
 
 /**
  * Streams — confidential payroll. The employer funds the pool and sets an
@@ -130,7 +131,7 @@ export function Streams() {
             {isEmployee ? "You're on this payroll." : "Connected wallet is not on this payroll."}
           </p>
           <button onClick={claim} disabled={!isEmployee} className="btn btn-primary">
-            <span aria-hidden>🔒</span> Claim my payslip
+            <LockIcon className="h-3.5 w-3.5" /> Claim my payslip
           </button>
         </div>
       </div>
