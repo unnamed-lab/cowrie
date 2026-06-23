@@ -27,7 +27,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const circle = await deploy("SavingsCircle", {
     from: deployer,
     log: true,
-    args: [token.address, deployer, members],
+    args: [token.address, deployer, "Default Circle", members],
   });
 
   // 3. Payroll, weekly period.
@@ -45,6 +45,27 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     args: [token.address, deployer, deployer, 1_000_000n, week],
   });
 
+  // 5. SavingsCircleFactory
+  const factory = await deploy("SavingsCircleFactory", {
+    from: deployer,
+    log: true,
+    args: [],
+  });
+
+  // 6. CrowdfundFactory
+  const crowdfundFactory = await deploy("CrowdfundFactory", {
+    from: deployer,
+    log: true,
+    args: [],
+  });
+
+  // 7. PayrollStreamsFactory
+  const payrollStreamsFactory = await deploy("PayrollStreamsFactory", {
+    from: deployer,
+    log: true,
+    args: [],
+  });
+
   log("\nCowrie deployed:");
   log(JSON.stringify(
     {
@@ -52,6 +73,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
       SavingsCircle: circle.address,
       PayrollStreams: payroll.address,
       Crowdfund: crowdfund.address,
+      SavingsCircleFactory: factory.address,
+      CrowdfundFactory: crowdfundFactory.address,
+      PayrollStreamsFactory: payrollStreamsFactory.address,
     },
     null,
     2,

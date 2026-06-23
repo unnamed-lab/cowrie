@@ -2,7 +2,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { ethers, fhevm } from "hardhat";
 import { expect } from "chai";
 import { FhevmType } from "@fhevm/hardhat-plugin";
-import { ConfidentialUSDT, SavingsCircle } from "../types";
+import { ConfidentialUSDT, SavingsCircle, SavingsCircleFactory } from "../types";
 
 const UNTIL = 9_999_999_999; // far-future uint48 operator expiry
 
@@ -30,6 +30,7 @@ describe("SavingsCircle", () => {
     circle = (await ethers.deployContract("SavingsCircle", [
       tokenAddr,
       alice.address,
+      "Test Circle",
       [alice.address, bob.address],
     ])) as SavingsCircle;
     circleAddr = await circle.getAddress();
@@ -75,6 +76,7 @@ describe("SavingsCircle", () => {
     const dynamicCircle = (await ethers.deployContract("SavingsCircle", [
       tokenAddr,
       alice.address,
+      "Dynamic Circle",
       [alice.address],
     ])) as SavingsCircle;
 
@@ -90,3 +92,96 @@ describe("SavingsCircle", () => {
     expect(await dynamicCircle.memberCount()).to.equal(2n);
   });
 });
+
+describe("SavingsCircleFactory", () => {
+  let alice: HardhatEthersSigner;
+  let bob: HardhatEthersSigner;
+  let token: ConfidentialUSDT;
+  let tokenAddr: string;
+  let factory: SavingsCircleFactory;
+  let factoryAddr: string;
+
+  beforeEach(async function () {
+    if (!fhevm.isMock) this.skip();
+    [alice, bob] = await ethers.getSigners();
+
+    token = (await ethers.deployContract("ConfidentialUSDT")) as ConfidentialUSDT;
+    tokenAddr = await token.getAddress();
+
+    factory = (await ethers.deployContract("SavingsCircleFactory")) as SavingsCircleFactory;
+    factoryAddr = await factory.getAddress();
+  });
+
+  it("deploys a new circle, whitelists organizer + initial members and maps them", async () => {
+    const initialMembers = [alice.address, bob.address];
+    const tx = await factory.connect(alice).createCircle(tokenAddr, "My Custom Circle", initialMembers);
+    const receipt = await tx.wait();
+
+    // Verify CircleCreated event
+    const event = receipt?.logs.find((log) => {
+      try {
+        const parsed = factory.interface.parseLog(log);
+        return parsed?.name === "CircleCreated";
+      } catch {
+        return false;
+      }
+    });
+    expect(event).to.not.be.undefined;
+    const parsedEvent = factory.interface.parseLog(event!);
+    const circleAddr = parsedEvent?.args[0];
+    expect(parsedEvent?.args[1]).to.equal(alice.address);
+    expect(parsedEvent?.args[2]).to.equal("My Custom Circle");
+
+    expect(await factory.isDeployedCircle(circleAddr)).to.be.true;
+    expect(await factory.getCirclesCount()).to.equal(1n);
+
+    // Verify user membership lists
+    const aliceCircles = await factory.getUserCircles(alice.address);
+    const bobCircles = await factory.getUserCircles(bob.address);
+    expect(aliceCircles).to.include(circleAddr);
+    expect(bobCircles).to.include(circleAddr);
+
+    // Verify deployed circle properties
+    const circleInstance = await ethers.getContractAt("SavingsCircle", circleAddr) as SavingsCircle;
+    expect(await circleInstance.name()).to.equal("My Custom Circle");
+    expect(await circleInstance.organizer()).to.equal(alice.address);
+    expect(await circleInstance.factory()).to.equal(factoryAddr);
+    expect(await circleInstance.isMember(alice.address)).to.be.true;
+    expect(await circleInstance.isMember(bob.address)).to.be.true;
+  });
+
+  it("registers dynamic join mapping in the factory", async () => {
+    const initialMembers = [alice.address];
+    const tx = await factory.connect(alice).createCircle(tokenAddr, "Dynamic Join Circle", initialMembers);
+    const receipt = await tx.wait();
+
+    // Verify CircleCreated event
+    const event = receipt?.logs.find((log) => {
+      try {
+        const parsed = factory.interface.parseLog(log);
+        return parsed?.name === "CircleCreated";
+      } catch {
+        return false;
+      }
+    });
+    expect(event).to.not.be.undefined;
+    const parsedEvent = factory.interface.parseLog(event!);
+    const circleAddr = parsedEvent?.args[0];
+
+    const circleInstance = await ethers.getContractAt("SavingsCircle", circleAddr) as SavingsCircle;
+
+    // Bob tries to join - should fail until authorized
+    await expect(circleInstance.connect(bob).join()).to.be.revertedWith("not authorized to join");
+
+    // Alice authorizes Bob
+    await (await circleInstance.connect(alice).authorizeMember(bob.address)).wait();
+
+    // Bob joins
+    await (await circleInstance.connect(bob).join()).wait();
+
+    // Verify Bob is now mapped to this circle in the factory
+    const bobCircles = await factory.getUserCircles(bob.address);
+    expect(bobCircles).to.include(circleAddr);
+  });
+});
+

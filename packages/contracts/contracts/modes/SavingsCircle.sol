@@ -4,6 +4,10 @@ pragma solidity ^0.8.27;
 import {FHE, euint64, externalEuint64} from "@fhevm/solidity/lib/FHE.sol";
 import {ConfidentialPoolBase} from "../base/ConfidentialPoolBase.sol";
 
+interface ISavingsCircleFactory {
+    function registerUserJoin(address user) external;
+}
+
 /// @title SavingsCircle (ROSCA / esusu / tanda / hui)
 /// @notice Rotating savings circle. Each round every member contributes an
 ///         encrypted amount into a shared pot; the whole pot rotates to one
@@ -26,12 +30,18 @@ contract SavingsCircle is ConfidentialPoolBase {
     event Contributed(address indexed member, uint256 indexed round);
     event PaidOut(address indexed recipient, uint256 indexed round);
 
+    string public name;
+    address public immutable factory;
+
     constructor(
         address token_,
         address organizer_,
+        string memory name_,
         address[] memory members_
     ) ConfidentialPoolBase(token_, organizer_) {
         require(members_.length >= 1, "need at least one member (organizer)");
+        name = name_;
+        factory = msg.sender;
         members = members_;
         for (uint256 i; i < members_.length; ++i) {
             require(!isMember[members_[i]], "dup member");
@@ -58,6 +68,11 @@ contract SavingsCircle is ConfidentialPoolBase {
         require(!isMember[msg.sender], "already a member");
         isMember[msg.sender] = true;
         members.push(msg.sender);
+
+        // Register user in the factory database if deployed via factory
+        if (factory != address(0) && factory.code.length > 0) {
+            try ISavingsCircleFactory(factory).registerUserJoin(msg.sender) {} catch {}
+        }
     }
 
     /// @notice Get all registered members of the savings circle.
