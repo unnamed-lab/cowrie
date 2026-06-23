@@ -317,7 +317,7 @@ export function Streams() {
           <div className="rounded-2xl bg-ink/60 p-5 border border-shell/5 relative overflow-hidden">
             <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gold">Employer Console</h3>
             
-            <p className="text-xs text-muted mb-4">
+            <p className="text-xs text-muted mb-4 break-all">
               Stream Address: <span className="font-mono">{activeStreamAddress}</span>
               <br />
               Period: <span className="font-semibold text-shell">{period ? `${Number(period)} seconds` : "—"}</span>

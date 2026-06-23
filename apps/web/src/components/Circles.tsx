@@ -397,7 +397,7 @@ export function Circles() {
           <div className="mb-6 rounded-2xl bg-ink/60 p-5 relative overflow-hidden border border-shell/5">
             <div className="flex justify-between items-start mb-1 flex-wrap gap-2">
               <h3 className="text-base font-bold text-shell">{activeCircleNameStr}</h3>
-              <span className="font-mono text-[10px] bg-ink/80 text-muted px-2 py-0.5 rounded-full border border-shell/5">
+              <span className="font-mono text-[10px] bg-ink/80 text-muted px-2 py-0.5 rounded-full border border-shell/5 break-all max-w-full">
                 {activeCircleAddress}
               </span>
             </div>

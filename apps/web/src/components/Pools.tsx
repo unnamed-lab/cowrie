@@ -409,7 +409,7 @@ export function Pools() {
 
           <div className="rounded-2xl bg-ink/60 p-5 border border-shell/5 flex flex-col gap-4">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gold">Campaign Details</h3>
-            <p className="text-xs text-muted leading-relaxed font-mono">
+            <p className="text-xs text-muted leading-relaxed font-mono break-all">
               Campaign address: {activeCampaignAddress}
               <br />
               Beneficiary: {beneficiary ? (beneficiary as string) : "—"}
