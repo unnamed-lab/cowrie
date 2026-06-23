@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* Cowrie design tokens — deliberately off the AI-default crypto palette.
+   Warm cowrie-shell cream on deep indigo, coral shell-mouth accent, brass
+   highlights, deep teal for the decrypted/success state. */
+@theme {
+  --color-ink: #14121f;
+  --color-ink-soft: #1d1a2b;
+  --color-shell: #f3e9da;
+  --color-coral: #e2734e;
+  --color-gold: #c9a227;
+  --color-sea: #2e6e6a;
+  --color-muted: #6e6a7c;
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+
+  --radius-pot: 1.25rem;
+}
+
+html,
+body {
+  background: var(--color-ink);
+  color: var(--color-shell);
+  font-family: var(--font-sans);
+}
+
+/* Visible keyboard focus everywhere — accessibility quality floor. */
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Encrypted handles render in mono, slightly faded — "this is ciphertext". */
+.handle {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  word-break: break-all;
+}
