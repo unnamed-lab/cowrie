@@ -9,7 +9,7 @@ export const ADDRESSES = {
   // Ethereum Sepolia
   11155111: {
     ConfidentialUSDT: "0x3f2569498053a8c7266839Ab8a4256765004970f",
-    SavingsCircle: "0xb382a0427987D99Ba0A0a354362Df8e2c8098f07",
+    SavingsCircle: "0x8174714DABeD36fA3cCcd42456eA5d0Dda73aA4e",
     PayrollStreams: "0x17037e134a8Ef4a79A9a37c0Df6C0a3d758A2B2d",
     Crowdfund: "0xbF3B0Db37498B4CA0902e6Fe92f75BDD7e4252fb",
   },
