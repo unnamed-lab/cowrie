@@ -1,0 +1,19 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+allowBuilds:
+  bufferutil: set this to true or false
+  keccak: set this to true or false
+  secp256k1: set this to true or false
+  sharp: set this to true or false
+  utf-8-validate: set this to true or false
+
+# Native/post-install build scripts we explicitly trust (pnpm gates these by default).
+onlyBuiltDependencies:
+  - bufferutil
+  - keccak
+  - secp256k1
+  - sharp
+  - utf-8-validate
+  - esbuild

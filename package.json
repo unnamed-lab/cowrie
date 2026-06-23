@@ -1,0 +1,17 @@
+{
+  "name": "cowrie",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cowrie — one FHE treasury engine, three modes (Circles, Streams, Pools) on encrypted ERC-7984 amounts.",
+  "license": "BSD-3-Clause-Clear",
+  "scripts": {
+    "compile": "pnpm --filter @cowrie/contracts compile",
+    "test": "pnpm --filter @cowrie/contracts test",
+    "deploy:sepolia": "pnpm --filter @cowrie/contracts deploy:sepolia",
+    "web:dev": "pnpm --filter @cowrie/web dev",
+    "web:build": "pnpm --filter @cowrie/web build"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
