@@ -70,6 +70,41 @@ export const CIRCLE_ABI = [
     inputs: [{ name: "", type: "address" }],
     outputs: [{ name: "", type: "bool" }],
   },
+  {
+    type: "function",
+    name: "join",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "getMembers",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address[]" }],
+  },
+  {
+    type: "function",
+    name: "authorizeMember",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "member", type: "address" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "isAuthorized",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "organizer",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
 ] as const;
 
 export const PAYROLL_ABI = [

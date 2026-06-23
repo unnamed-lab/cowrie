@@ -69,4 +69,24 @@ describe("SavingsCircle", () => {
     await contribute(alice, 100);
     await expect(circle.payout()).to.be.revertedWith("round not complete");
   });
+
+  it("enforces organizer authorization for dynamic membership joins", async () => {
+    // Deploy a separate circle with only alice (organizer) as initial member
+    const dynamicCircle = (await ethers.deployContract("SavingsCircle", [
+      tokenAddr,
+      alice.address,
+      [alice.address],
+    ])) as SavingsCircle;
+
+    // Bob tries to join without authorization and should be rejected
+    await expect(dynamicCircle.connect(bob).join()).to.be.revertedWith("not authorized to join");
+
+    // Alice (organizer) whitelists Bob
+    await (await dynamicCircle.connect(alice).authorizeMember(bob.address)).wait();
+
+    // Bob can now join successfully
+    await (await dynamicCircle.connect(bob).join()).wait();
+    expect(await dynamicCircle.isMember(bob.address)).to.be.true;
+    expect(await dynamicCircle.memberCount()).to.equal(2n);
+  });
 });

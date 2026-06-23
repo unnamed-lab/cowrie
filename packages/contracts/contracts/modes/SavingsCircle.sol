@@ -13,6 +13,7 @@ import {ConfidentialPoolBase} from "../base/ConfidentialPoolBase.sol";
 contract SavingsCircle is ConfidentialPoolBase {
     address[] public members;
     mapping(address => bool) public isMember;
+    mapping(address => bool) public isAuthorized;
 
     /// @notice Whose turn it is to collect (public by design).
     uint256 public round;
@@ -30,14 +31,38 @@ contract SavingsCircle is ConfidentialPoolBase {
         address organizer_,
         address[] memory members_
     ) ConfidentialPoolBase(token_, organizer_) {
-        require(members_.length >= 2, "need members");
+        require(members_.length >= 1, "need at least one member (organizer)");
         members = members_;
         for (uint256 i; i < members_.length; ++i) {
             require(!isMember[members_[i]], "dup member");
             isMember[members_[i]] = true;
+            isAuthorized[members_[i]] = true; // Pre-authorize initial members
         }
         _pot = FHE.asEuint64(0);
         FHE.allowThis(_pot);
+    }
+
+    /// @notice Authorize an address to join the savings circle (only organizer).
+    function authorizeMember(address member) external {
+        require(msg.sender == organizer, "only organizer");
+        require(round == 0 && contributionsThisRound == 0, "circle already started");
+        require(!isAuthorized[member], "already authorized");
+        isAuthorized[member] = true;
+    }
+
+    /// @notice Join the savings circle as a member before the first round starts.
+    /// @dev Requires the caller to be authorized by the organizer.
+    function join() external {
+        require(round == 0 && contributionsThisRound == 0, "circle already started");
+        require(isAuthorized[msg.sender], "not authorized to join");
+        require(!isMember[msg.sender], "already a member");
+        isMember[msg.sender] = true;
+        members.push(msg.sender);
+    }
+
+    /// @notice Get all registered members of the savings circle.
+    function getMembers() external view returns (address[] memory) {
+        return members;
     }
 
     /// @notice Contribute an encrypted amount to this round's pot.
