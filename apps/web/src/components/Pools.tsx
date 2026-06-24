@@ -439,21 +439,48 @@ export function Pools() {
             <AmountRow value={amount} onChange={setAmount} onSubmit={contribute} cta="Contribute privately" busy={isPending} />
           </div>
 
-          {/* Lifecycle management */}
+          {/* Lifecycle management — each step is enabled only when it applies, so
+              the order (finalize → reveal & settle → release/refund) is obvious. */}
           <div className="mt-6 border-t border-shell/10 pt-5">
-            <p className="mb-3 text-xs uppercase tracking-wider text-muted font-semibold">Lifecycle Operations</p>
+            <p className="mb-1 text-xs uppercase tracking-wider text-muted font-semibold">Lifecycle Operations</p>
+            <p className="mb-3 text-[11px] text-muted">
+              {stateName === "Active" && (isDeadlinePassed ? "Deadline passed — finalize to compare the encrypted total to the goal." : "Running — finalize is available after the deadline.")}
+              {stateName === "Deciding" && "Finalized — reveal & settle the single goal-reached boolean to decide the outcome."}
+              {stateName === "Succeeded" && "Goal reached — the beneficiary can release the funds."}
+              {stateName === "Failed" && "Goal not reached — contributors can claim a refund."}
+            </p>
             <div className="flex flex-wrap gap-2.5">
-              <button onClick={finalize} className="btn btn-ghost text-xs py-2 px-4 h-9">
-                Finalize Campaign
+              <button
+                onClick={finalize}
+                disabled={isPending || stateName !== "Active" || !isDeadlinePassed}
+                title={stateName !== "Active" ? "Already finalized." : !isDeadlinePassed ? "Available after the deadline." : "Compare the encrypted total to the goal."}
+                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40"
+              >
+                1 · Finalize
               </button>
-              <button onClick={revealAndSettle} className="btn btn-ghost text-xs py-2 px-4 h-9">
-                Reveal &amp; Settle Goal
+              <button
+                onClick={revealAndSettle}
+                disabled={isPending || stateName !== "Deciding"}
+                title={stateName !== "Deciding" ? "Finalize first." : "Reveal the goal-reached boolean and settle on-chain."}
+                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40"
+              >
+                2 · Reveal &amp; settle
               </button>
-              <button onClick={() => action("release")} className="btn btn-ghost text-xs py-2 px-4 h-9">
-                Release Funds
+              <button
+                onClick={() => action("release")}
+                disabled={isPending || stateName !== "Succeeded"}
+                title={stateName !== "Succeeded" ? "Only after the goal is reached." : "Send funds to the beneficiary."}
+                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40"
+              >
+                Release funds
               </button>
-              <button onClick={() => action("refund")} className="btn btn-ghost text-xs py-2 px-4 h-9">
-                Claim Refund
+              <button
+                onClick={() => action("refund")}
+                disabled={isPending || stateName !== "Failed"}
+                title={stateName !== "Failed" ? "Only if the campaign failed." : "Reclaim your contribution."}
+                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40 border-coral/40 text-coral-soft"
+              >
+                Claim refund
               </button>
             </div>
           </div>
