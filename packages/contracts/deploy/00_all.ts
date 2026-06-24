@@ -2,10 +2,12 @@ import { DeployFunction } from "hardhat-deploy/types";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
 /**
- * Deploys the full Cowrie stack: the ConfidentialUSDT token, then the three
- * modes (SavingsCircle, PayrollStreams, Crowdfund) that share its rails.
+ * Deploys the Cowrie infrastructure: the ConfidentialUSDT token and the three
+ * factories. Individual circles, streams, and campaigns are NOT deployed here —
+ * users create their own instances through the factories from the dashboard, so
+ * there are no hardcoded default instances.
  *
- * After deploying, copy the printed addresses into
+ * After deploying, copy the printed factory addresses into
  * `packages/shared/src/addresses.ts` and the README.
  */
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
@@ -14,72 +16,26 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployer } = await getNamedAccounts();
 
   // 1. Confidential token (the money).
-  const token = await deploy("ConfidentialUSDT", {
-    from: deployer,
-    log: true,
-    args: [],
-  });
+  const token = await deploy("ConfidentialUSDT", { from: deployer, log: true, args: [] });
 
-  // 2. Savings circle — demo with the deployer as the sole seed member; in a real
-  //    circle pass the full member list. Needs >= 2 members, so we add a second
-  //    well-known dev address as a placeholder.
-  const members = [deployer, "0x000000000000000000000000000000000000dEaD"];
-  const circle = await deploy("SavingsCircle", {
-    from: deployer,
-    log: true,
-    args: [token.address, deployer, "Default Circle", members],
-  });
-
-  // 3. Payroll, weekly period.
-  const week = 7 * 24 * 60 * 60;
-  const payroll = await deploy("PayrollStreams", {
-    from: deployer,
-    log: true,
-    args: [token.address, deployer, week],
-  });
-
-  // 4. Crowdfund: goal 1_000_000 cUSDT units, 7-day window, deployer as beneficiary.
-  const crowdfund = await deploy("Crowdfund", {
-    from: deployer,
-    log: true,
-    args: [token.address, deployer, deployer, 1_000_000n, week],
-  });
-
-  // 5. SavingsCircleFactory
-  const factory = await deploy("SavingsCircleFactory", {
-    from: deployer,
-    log: true,
-    args: [],
-  });
-
-  // 6. CrowdfundFactory
-  const crowdfundFactory = await deploy("CrowdfundFactory", {
-    from: deployer,
-    log: true,
-    args: [],
-  });
-
-  // 7. PayrollStreamsFactory
-  const payrollStreamsFactory = await deploy("PayrollStreamsFactory", {
-    from: deployer,
-    log: true,
-    args: [],
-  });
+  // 2. Factories — the deployers/registries for each mode.
+  const circleFactory = await deploy("SavingsCircleFactory", { from: deployer, log: true, args: [] });
+  const crowdfundFactory = await deploy("CrowdfundFactory", { from: deployer, log: true, args: [] });
+  const payrollFactory = await deploy("PayrollStreamsFactory", { from: deployer, log: true, args: [] });
 
   log("\nCowrie deployed:");
-  log(JSON.stringify(
-    {
-      ConfidentialUSDT: token.address,
-      SavingsCircle: circle.address,
-      PayrollStreams: payroll.address,
-      Crowdfund: crowdfund.address,
-      SavingsCircleFactory: factory.address,
-      CrowdfundFactory: crowdfundFactory.address,
-      PayrollStreamsFactory: payrollStreamsFactory.address,
-    },
-    null,
-    2,
-  ));
+  log(
+    JSON.stringify(
+      {
+        ConfidentialUSDT: token.address,
+        SavingsCircleFactory: circleFactory.address,
+        CrowdfundFactory: crowdfundFactory.address,
+        PayrollStreamsFactory: payrollFactory.address,
+      },
+      null,
+      2,
+    ),
+  );
 };
 
 export default func;
