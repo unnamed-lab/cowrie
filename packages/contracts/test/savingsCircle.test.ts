@@ -109,6 +109,24 @@ describe("SavingsCircle", () => {
     await expect(circle.connect(bob).openRefund()).to.be.revertedWith("only organizer");
   });
 
+  it("dissolves when all members approve, opening refunds for everyone", async () => {
+    await contribute(alice);
+    await (await circle.connect(alice).approveDissolve()).wait();
+    expect(await circle.dissolved()).to.equal(false);
+    await (await circle.connect(bob).approveDissolve()).wait();
+    expect(await circle.dissolved()).to.equal(true);
+    expect(await circle.refundOpen()).to.equal(true);
+    await (await circle.connect(alice).claimRefund()).wait();
+    expect(await userBalance(token, tokenAddr, alice)).to.equal(1_000n);
+    await expect(circle.connect(alice).contribute()).to.be.revertedWith("refund window open");
+  });
+
+  it("lets the organizer dissolve directly", async () => {
+    await (await circle.connect(alice).dissolve()).wait();
+    expect(await circle.dissolved()).to.equal(true);
+    expect(await circle.refundOpen()).to.equal(true);
+  });
+
   it("enforces organizer authorization for dynamic membership joins", async () => {
     // Deploy a separate circle with only alice (organizer) as initial member
     const dynamicCircle = (await ethers.deployContract("SavingsCircle", [

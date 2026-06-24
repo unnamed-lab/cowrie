@@ -26,6 +26,8 @@ describe("PayrollStreams", () => {
       tokenAddr,
       employer.address,
       WEEK,
+      "Acme Payroll",
+      "",
     ])) as PayrollStreams;
     payrollAddr = await payroll.getAddress();
 
@@ -74,6 +76,29 @@ describe("PayrollStreams", () => {
     const enc = await encrypt(employee, 1);
     await expect(payroll.connect(employee).fund(enc.handles[0], enc.inputProof)).to.be.revertedWith("not organizer");
   });
+
+  it("removes an employee so they can no longer claim (dispute)", async () => {
+    const salEnc = await encrypt(employer, 5_000);
+    await (await payroll.connect(employer).setSalary(employee.address, salEnc.handles[0], salEnc.inputProof)).wait();
+    await (await payroll.connect(employer).removeEmployee(employee.address)).wait();
+    await expect(payroll.connect(employee).claim()).to.be.revertedWith("not an employee");
+  });
+
+  it("stops the payroll, reclaims unspent funds, and blocks claims (stopAndReclaim)", async () => {
+    const fundEnc = await encrypt(employer, 100_000);
+    await (await payroll.connect(employer).fund(fundEnc.handles[0], fundEnc.inputProof)).wait();
+    const salEnc = await encrypt(employer, 5_000);
+    await (await payroll.connect(employer).setSalary(employee.address, salEnc.handles[0], salEnc.inputProof)).wait();
+
+    await (await payroll.connect(employer).stopAndReclaim()).wait();
+    expect(await payroll.dissolved()).to.equal(true);
+
+    // Employer gets the unspent pool back (funded 100k, none claimed → 100k returned).
+    const balHandle = await token.confidentialBalanceOf(employer.address);
+    expect(await fhevm.userDecryptEuint(FhevmType.euint64, balHandle, tokenAddr, employer)).to.equal(100_000n);
+
+    await expect(payroll.connect(employee).claim()).to.be.revertedWith("payroll stopped");
+  });
 });
 
 describe("PayrollStreamsFactory", () => {
@@ -95,20 +120,20 @@ describe("PayrollStreamsFactory", () => {
   it("deploys a stream, registers it, and enforces spam prevention", async () => {
     // 1. Fails if period is too short (min 60s)
     await expect(
-      factory.connect(employer).createStream(tokenAddr, 30, {
+      factory.connect(employer).createStream(tokenAddr, 30, "Acme", "", {
         value: ethers.parseEther("0.01"),
       })
     ).to.be.revertedWith("period too short (min 60s)");
 
     // 2. Fails if creation fee is insufficient
     await expect(
-      factory.connect(employer).createStream(tokenAddr, 120, {
-        value: ethers.parseEther("0.005"),
+      factory.connect(employer).createStream(tokenAddr, 120, "Acme", "", {
+        value: ethers.parseEther("0.001"),
       })
-    ).to.be.revertedWith("insufficient creation fee (min 0.01 ETH)");
+    ).to.be.revertedWith("insufficient creation fee (min 0.005 ETH)");
 
     // 3. Succeeds if all params are valid
-    const tx = await factory.connect(employer).createStream(tokenAddr, 3600, {
+    const tx = await factory.connect(employer).createStream(tokenAddr, 3600, "Acme Payroll", "", {
       value: ethers.parseEther("0.01"),
     });
     const receipt = await tx.wait();

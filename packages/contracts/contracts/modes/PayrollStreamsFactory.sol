@@ -13,7 +13,7 @@ contract PayrollStreamsFactory is Ownable {
     mapping(address => address[]) private _userStreams;
     mapping(address => bool) public isDeployedStream;
 
-    uint256 public constant CREATION_FEE = 0.01 ether;
+    uint256 public constant CREATION_FEE = 0.005 ether;
     uint256 public constant MIN_PERIOD = 60; // 1 minute
 
     event StreamCreated(
@@ -32,14 +32,17 @@ contract PayrollStreamsFactory is Ownable {
      */
     function createStream(
         address token,
-        uint256 period
+        uint256 period,
+        string calldata title,
+        string calldata description
     ) external payable returns (address) {
         // Spam prevention checks
-        require(msg.value >= CREATION_FEE, "insufficient creation fee (min 0.01 ETH)");
+        require(msg.value >= CREATION_FEE, "insufficient creation fee (min 0.005 ETH)");
         require(period >= MIN_PERIOD, "period too short (min 60s)");
+        require(bytes(title).length > 0, "title required");
 
-        // Deploy the new PayrollStreams instance
-        PayrollStreams stream = new PayrollStreams(token, msg.sender, period);
+        // Deploy the new PayrollStreams instance (description optional)
+        PayrollStreams stream = new PayrollStreams(token, msg.sender, period, title, description);
         address streamAddr = address(stream);
 
         allStreams.push(streamAddr);

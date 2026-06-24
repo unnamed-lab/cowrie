@@ -40,12 +40,20 @@ contract SavingsCircle is ConfidentialPoolBase {
     mapping(uint256 => mapping(address => euint64)) private _paid; // actual amount pulled, per round/member
     mapping(uint256 => mapping(address => bool)) public refunded;
 
+    /// @notice Permanently wound down (a tombstone — EIP-6780 means we can't truly
+    ///         selfdestruct). When dissolved, refunds stay open and nothing else runs.
+    bool public dissolved;
+    mapping(address => bool) public dissolveApproved;
+    uint256 public dissolveApprovals;
+
     event Contributed(address indexed member, uint256 indexed round);
     event PaidOut(address indexed recipient, uint256 indexed round);
     event AmountSet(address indexed organizer);
     event RefundOpened(uint256 indexed round);
     event RefundClosed(uint256 indexed round);
     event Refunded(address indexed member, uint256 indexed round);
+    event DissolveApproved(address indexed member, uint256 approvals, uint256 needed);
+    event Dissolved();
 
     string public name;
     address public immutable factory;
@@ -67,6 +75,7 @@ contract SavingsCircle is ConfidentialPoolBase {
         }
         _pot = FHE.asEuint64(0);
         FHE.allowThis(_pot);
+        FHE.makePubliclyDecryptable(_pot); // pot total is visible for accountability; gifts are not
     }
 
     /// @notice Authorize an address to join the savings circle (only organizer).
@@ -135,6 +144,7 @@ contract SavingsCircle is ConfidentialPoolBase {
 
         _pot = FHE.add(_pot, moved);
         FHE.allowThis(_pot);
+        FHE.makePubliclyDecryptable(_pot); // pot total is visible for accountability; gifts are not
         emit Contributed(msg.sender, round);
     }
 
@@ -148,12 +158,43 @@ contract SavingsCircle is ConfidentialPoolBase {
     }
 
     /// @notice Close the refund window (organizer). Members who refunded may
-    ///         contribute again.
+    ///         contribute again. Not allowed once the circle is dissolved.
     function closeRefund() external {
         require(msg.sender == organizer, "only organizer");
         require(refundOpen, "not open");
+        require(!dissolved, "dissolved");
         refundOpen = false;
         emit RefundClosed(round);
+    }
+
+    /// @notice Permanently wind down the circle (organizer). Opens refunds for good
+    ///         and stops all further activity — a tombstone (selfdestruct is a no-op
+    ///         under EIP-6780).
+    function dissolve() external {
+        require(msg.sender == organizer, "only organizer");
+        _dissolve();
+    }
+
+    /// @notice Vote to dissolve. When every member has approved, the circle dissolves
+    ///         on its own — "refund everyone if all agree".
+    function approveDissolve() external {
+        require(isMember[msg.sender], "not a member");
+        require(!dissolved, "dissolved");
+        require(!dissolveApproved[msg.sender], "already approved");
+        dissolveApproved[msg.sender] = true;
+        dissolveApprovals += 1;
+        emit DissolveApproved(msg.sender, dissolveApprovals, members.length);
+        if (dissolveApprovals == members.length) {
+            _dissolve();
+        }
+    }
+
+    function _dissolve() internal {
+        require(!dissolved, "dissolved");
+        dissolved = true;
+        refundOpen = true; // everyone can reclaim their current contribution
+        emit Dissolved();
+        emit RefundOpened(round);
     }
 
     /// @notice Reclaim your own contribution for the current round while the
@@ -169,6 +210,7 @@ contract SavingsCircle is ConfidentialPoolBase {
         contributionsThisRound -= 1;
         _pot = FHE.sub(_pot, amount);
         FHE.allowThis(_pot);
+        FHE.makePubliclyDecryptable(_pot); // pot total is visible for accountability; gifts are not
 
         _push(msg.sender, amount);
         emit Refunded(msg.sender, round);
@@ -188,6 +230,7 @@ contract SavingsCircle is ConfidentialPoolBase {
         contributionsThisRound = 0;
         _pot = FHE.asEuint64(0);
         FHE.allowThis(_pot);
+        FHE.makePubliclyDecryptable(_pot); // pot total is visible for accountability; gifts are not
     }
 
     function memberCount() external view returns (uint256) {
@@ -197,6 +240,11 @@ contract SavingsCircle is ConfidentialPoolBase {
     /// @notice Handle of the fixed contribution amount (decryptable by members).
     function fixedAmountHandle() external view returns (euint64) {
         return _fixedAmount;
+    }
+
+    /// @notice Handle of this round's pot total (publicly decryptable — accountability).
+    function potTotalHandle() external view returns (bytes32) {
+        return FHE.toBytes32(_pot);
     }
 
     /// @notice Handle of the caller's paid amount this round (decryptable by them).

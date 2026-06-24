@@ -19,6 +19,10 @@ import {ConfidentialPoolBase} from "../base/ConfidentialPoolBase.sol";
 ///        3. `settle(cleartexts, proof)` verifies them with `FHE.checkSignatures`
 ///           and flips the state machine — trustlessly, by anyone.
 contract Crowdfund is ConfidentialPoolBase {
+    /// @notice Human-readable campaign title (what people are funding).
+    string public title;
+    /// @notice Human-readable description (why — the cause / details).
+    string public description;
     /// @notice Public campaign target (the goal is a public term; the running total is not).
     uint64 public immutable goal;
     /// @notice Public deadline after which the campaign can be finalized.
@@ -47,14 +51,19 @@ contract Crowdfund is ConfidentialPoolBase {
         address organizer_,
         address beneficiary_,
         uint64 goal_,
-        uint256 duration_
+        uint256 duration_,
+        string memory title_,
+        string memory description_
     ) ConfidentialPoolBase(token_, organizer_) {
         require(beneficiary_ != address(0), "zero beneficiary");
         beneficiary = beneficiary_;
         goal = goal_;
         deadline = block.timestamp + duration_;
+        title = title_;
+        description = description_;
         _total = FHE.asEuint64(0);
         FHE.allowThis(_total);
+        FHE.makePubliclyDecryptable(_total); // running total (progress) is public; individual gifts are not
     }
 
     /// @notice Contribute an encrypted amount before the deadline.
@@ -70,6 +79,7 @@ contract Crowdfund is ConfidentialPoolBase {
 
         _total = FHE.add(_total, moved);
         FHE.allowThis(_total);
+        FHE.makePubliclyDecryptable(_total); // progress is public; who-gave-what is not
         emit Contributed(msg.sender);
     }
 
@@ -123,5 +133,10 @@ contract Crowdfund is ConfidentialPoolBase {
     /// @notice Handle of the goal-reached boolean (valid once `finalize()` ran).
     function reachedHandle() external view returns (bytes32) {
         return FHE.toBytes32(_reached);
+    }
+
+    /// @notice Handle of the running total raised (publicly decryptable — campaign progress).
+    function totalRaisedHandle() external view returns (bytes32) {
+        return FHE.toBytes32(_total);
     }
 }

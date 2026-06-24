@@ -13,7 +13,7 @@ contract CrowdfundFactory is Ownable {
     mapping(address => address[]) private _userCampaigns;
     mapping(address => bool) public isDeployedCampaign;
 
-    uint256 public constant CREATION_FEE = 0.01 ether;
+    uint256 public constant CREATION_FEE = 0.005 ether;
     uint64 public constant MIN_GOAL = 1000;
     uint256 public constant MIN_DURATION = 3600; // 1 hour
 
@@ -39,16 +39,19 @@ contract CrowdfundFactory is Ownable {
         address token,
         address beneficiary,
         uint64 goal,
-        uint256 duration
+        uint256 duration,
+        string calldata title,
+        string calldata description
     ) external payable returns (address) {
         // Spam prevention checks
-        require(msg.value >= CREATION_FEE, "insufficient creation fee (min 0.01 ETH)");
+        require(msg.value >= CREATION_FEE, "insufficient creation fee (min 0.005 ETH)");
         require(goal >= MIN_GOAL, "goal too low (min 1000 cUSDT)");
         require(duration >= MIN_DURATION, "duration too short (min 1 hour)");
         require(beneficiary != address(0), "zero beneficiary");
+        require(bytes(title).length > 0, "title required");
 
         // Deploy the new Crowdfund instance
-        Crowdfund campaign = new Crowdfund(token, msg.sender, beneficiary, goal, duration);
+        Crowdfund campaign = new Crowdfund(token, msg.sender, beneficiary, goal, duration, title, description);
         address campaignAddr = address(campaign);
 
         allCampaigns.push(campaignAddr);
