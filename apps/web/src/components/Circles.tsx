@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, useReadContract, useWriteContract, useSignTypedData } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { encryptAmount } from "@/fhe/useEncrypt";
 import { decryptHandle } from "@/fhe/useUserDecrypt";
 import { CIRCLE_ABI, FACTORY_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
 import { useDeepLink, copyShareLink } from "@/lib/deeplink";
+import { publicDecryptUint } from "@/fhe/usePublicDecrypt";
 import { ShellMeter } from "./ShellMeter";
 import { ModeCard, AmountRow, StatusLine, useStatus } from "./ui";
 
@@ -36,7 +38,11 @@ function CircleChip({ address, isActive, onClick }: { address: `0x${string}`; is
 export function Circles() {
   const { address, isConnected } = useAccount();
   const { addresses, configured } = useCowrieAddresses();
-  const { writeContractAsync, isPending } = useWriteContract();
+  const queryClient = useQueryClient();
+  // Refresh all on-chain reads after any mutation settles (success OR failure).
+  const { writeContractAsync, isPending } = useWriteContract({
+    mutation: { onSettled: () => queryClient.invalidateQueries({ queryKey: ["readContract"] }) },
+  });
   const { signTypedDataAsync } = useSignTypedData();
   const s = useStatus();
 
@@ -112,6 +118,15 @@ export function Circles() {
     args: round !== undefined && address ? [round as bigint, address] : undefined,
     query: { enabled: onMe && round !== undefined },
   });
+  const { data: dissolved } = useReadContract({ ...base, functionName: "dissolved", query: { enabled: on } });
+  const { data: potHandle } = useReadContract({ ...base, functionName: "potTotalHandle", query: { enabled: on } });
+  const { data: isApproved, refetch: refetchApproved } = useReadContract({
+    abi: TOKEN_ABI,
+    address: token,
+    functionName: "isOperator",
+    args: address && active ? [address, active] : undefined,
+    query: { enabled: !!token && onMe },
+  });
 
   const isOrganizer = !!address && !!organizer && address.toLowerCase() === (organizer as string).toLowerCase();
   const beforeStart = round === 0n && Number(filled ?? 0) === 0;
@@ -124,7 +139,10 @@ export function Circles() {
       s.working(working);
       await fn();
       s.done(done);
-      setTimeout(() => refetchList(), 1500);
+      setTimeout(() => {
+        refetchList();
+        refetchApproved();
+      }, 1500);
     } catch (e) {
       s.error(e);
     }
@@ -134,8 +152,26 @@ export function Circles() {
     tx(
       () => writeContractAsync({ abi: TOKEN_ABI, address: token!, functionName: "setOperator", args: [active!, operatorUntil()] }),
       "Approving the circle to move your cUSDT…",
-      "Circle approved.",
+      "Circle approved — you can contribute now.",
     );
+
+  const dissolve = () =>
+    tx(() => writeContractAsync({ abi: CIRCLE_ABI, address: active!, functionName: "dissolve", args: [] }), "Dissolving the circle…", "Circle dissolved — refunds are open for everyone.");
+  const approveDissolve = () =>
+    tx(() => writeContractAsync({ abi: CIRCLE_ABI, address: active!, functionName: "approveDissolve", args: [] }), "Voting to dissolve…", "Vote recorded. When all members agree, the circle dissolves.");
+
+  const [pot, setPot] = useState<string | null>(null);
+  async function revealPot() {
+    if (!potHandle) return;
+    try {
+      s.working("Revealing the round pot total…");
+      const v = await publicDecryptUint(potHandle as string);
+      setPot(v.toString());
+      s.done("Pot total revealed (individual contributions stay private).");
+    } catch (e) {
+      s.error(e);
+    }
+  }
 
   async function setFixedAmount() {
     if (!address || !active) return;
@@ -304,13 +340,18 @@ export function Circles() {
               Round {String(round ?? 0n)} • {amountSet ? "fixed amount set" : "no amount yet"}{refundOpen ? " • refund window open" : ""}
             </p>
 
-            {/* Members can reveal the fixed amount */}
-            {isMember && amountSet && (
-              <div className="mt-3 flex items-center gap-3">
-                <button onClick={revealAmount} className="btn btn-ghost text-xs py-1.5 px-3" type="button">Reveal fixed amount</button>
-                {revealed !== null && <span className="chip text-sea">{Number(revealed).toLocaleString()} cUSDT each</span>}
-              </div>
-            )}
+            {/* Reveal the fixed amount (members) and the round pot total (anyone) */}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              {isMember && amountSet && (
+                <>
+                  <button onClick={revealAmount} className="btn btn-ghost text-xs py-1.5 px-3" type="button">Reveal fixed amount</button>
+                  {revealed !== null && <span className="chip text-sea">{Number(revealed).toLocaleString()} cUSDT each</span>}
+                </>
+              )}
+              <button onClick={revealPot} className="btn btn-ghost text-xs py-1.5 px-3" type="button">Reveal pot total</button>
+              {pot !== null && <span className="chip text-gold">{Number(pot).toLocaleString()} cUSDT in pot</span>}
+            </div>
+            {dissolved ? <p className="mt-3 chip border-coral/40 text-coral-soft inline-flex">Circle dissolved — claim any refund</p> : null}
           </div>
 
           {/* Organizer: set fixed amount before start */}
@@ -337,10 +378,12 @@ export function Circles() {
           )}
 
           {/* Member actions */}
-          {isMember && (
+          {isMember && !dissolved && (
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center gap-3">
-                <button onClick={approve} className="btn btn-ghost text-xs py-1.5 px-3.5" type="button">Approve operator</button>
+                {!isApproved && (
+                  <button onClick={approve} className="btn btn-ghost text-xs py-1.5 px-3.5" type="button">Approve operator</button>
+                )}
                 {roundComplete && !refundOpen && (
                   <button onClick={payout} disabled={isPending} className="btn btn-primary text-xs py-1.5 px-3.5" type="button">Payout pot</button>
                 )}
@@ -349,11 +392,19 @@ export function Circles() {
                 )}
               </div>
               {!refundOpen && amountSet && !hasContributed && (
-                <button onClick={contribute} disabled={isPending} className="btn btn-primary self-start" type="button">
-                  <span aria-hidden>🔒</span> Contribute the fixed amount
+                <div className="flex flex-col gap-1.5">
+                  <button onClick={contribute} disabled={isPending || !isApproved} className="btn btn-primary self-start disabled:opacity-50" type="button">
+                    <span aria-hidden>🔒</span> Contribute the fixed amount
+                  </button>
+                  {!isApproved && <span className="text-[11px] text-coral-soft">Approve the operator first so the circle can pull your cUSDT.</span>}
+                </div>
+              )}
+              {hasContributed && !refundOpen && <p className="text-xs text-sea">You&apos;ve contributed this round.</p>}
+              {!refundOpen && (
+                <button onClick={approveDissolve} className="btn btn-ghost self-start text-[11px] py-1 px-3 text-muted" type="button">
+                  Vote to dissolve
                 </button>
               )}
-              {hasContributed && !refundOpen && <p className="text-xs text-sea">You've contributed this round.</p>}
             </div>
           )}
 
@@ -361,10 +412,14 @@ export function Circles() {
           {isOrganizer && (
             <div className="mt-6 border-t border-shell/5 pt-5 flex flex-col gap-4">
               <div className="flex flex-wrap items-center gap-3">
-                {!refundOpen ? (
+                {!dissolved && !refundOpen && (
                   <button onClick={openRefund} className="btn btn-ghost text-xs py-1.5 px-3.5 border-coral/40 text-coral-soft" type="button">Open refund window</button>
-                ) : (
+                )}
+                {!dissolved && refundOpen && (
                   <button onClick={closeRefund} className="btn btn-ghost text-xs py-1.5 px-3.5" type="button">Close refund window</button>
+                )}
+                {!dissolved && (
+                  <button onClick={dissolve} className="btn btn-ghost text-xs py-1.5 px-3.5 border-coral/40 text-coral-soft" type="button">Dissolve circle</button>
                 )}
               </div>
               {beforeStart && (

@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { encryptAmount } from "@/fhe/useEncrypt";
 import { PAYROLL_ABI, PAYROLL_FACTORY_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
 import { useDeepLink, copyShareLink } from "@/lib/deeplink";
+import { publicDecryptUint } from "@/fhe/usePublicDecrypt";
 import { ModeCard, AmountRow, StatusLine, useStatus } from "./ui";
 import { LockIcon } from "./Icons";
 
@@ -55,7 +57,10 @@ function StreamChip({
 export function Streams() {
   const { address, isConnected } = useAccount();
   const { addresses, configured } = useCowrieAddresses();
-  const { writeContractAsync, isPending } = useWriteContract();
+  const queryClient = useQueryClient();
+  const { writeContractAsync, isPending } = useWriteContract({
+    mutation: { onSettled: () => queryClient.invalidateQueries({ queryKey: ["readContract"] }) },
+  });
   const s = useStatus();
 
   // Selected stream state — no hardcoded default; comes from a deep link, a
@@ -127,6 +132,43 @@ export function Streams() {
     functionName: "organizer",
     query: { enabled: !!activeStreamAddress && configured },
   });
+  const { data: streamTitleData } = useReadContract({
+    abi: PAYROLL_ABI,
+    address: activeStreamAddress,
+    functionName: "title",
+    query: { enabled: !!activeStreamAddress && configured },
+  });
+  const { data: streamDescData } = useReadContract({
+    abi: PAYROLL_ABI,
+    address: activeStreamAddress,
+    functionName: "description",
+    query: { enabled: !!activeStreamAddress && configured },
+  });
+  const { data: dissolved } = useReadContract({
+    abi: PAYROLL_ABI,
+    address: activeStreamAddress,
+    functionName: "dissolved",
+    query: { enabled: !!activeStreamAddress && configured },
+  });
+  const { data: fundedHandle } = useReadContract({
+    abi: PAYROLL_ABI,
+    address: activeStreamAddress,
+    functionName: "fundedHandle",
+    query: { enabled: !!activeStreamAddress && configured },
+  });
+  const { data: collectedHandle } = useReadContract({
+    abi: PAYROLL_ABI,
+    address: activeStreamAddress,
+    functionName: "collectedHandle",
+    query: { enabled: !!activeStreamAddress && configured },
+  });
+  const { data: isApproved, refetch: refetchApproved } = useReadContract({
+    abi: TOKEN_ABI,
+    address: token,
+    functionName: "isOperator",
+    args: address && activeStreamAddress ? [address, activeStreamAddress] : undefined,
+    query: { enabled: !!token && !!address && !!activeStreamAddress && configured },
+  });
 
   const isCurrentOrganizer = address && organizer && address.toLowerCase() === (organizer as string).toLowerCase();
 
@@ -135,7 +177,38 @@ export function Streams() {
     refetchIsEmployee();
     refetchOrganizer();
     refetchUserStreams();
+    refetchApproved();
   };
+
+  const [funded, setFunded] = useState<string | null>(null);
+  const [collected, setCollected] = useState<string | null>(null);
+  async function revealTotals() {
+    if (!fundedHandle || !collectedHandle) return;
+    try {
+      s.working("Revealing the payroll funded & collected totals…");
+      const [f, c] = await Promise.all([
+        publicDecryptUint(fundedHandle as string),
+        publicDecryptUint(collectedHandle as string),
+      ]);
+      setFunded(f.toString());
+      setCollected(c.toString());
+      s.done("Totals revealed (individual salaries stay private).");
+    } catch (e) {
+      s.error(e);
+    }
+  }
+
+  async function stopAndReclaim() {
+    if (!activeStreamAddress) return;
+    try {
+      s.working("Stopping payroll and reclaiming unspent funds…");
+      await writeContractAsync({ abi: PAYROLL_ABI, address: activeStreamAddress, functionName: "stopAndReclaim", args: [] });
+      s.done("Payroll stopped; remaining balance returned to you.");
+      refetchAll();
+    } catch (e) {
+      s.error(e);
+    }
+  }
 
   // Actions
   async function approve() {
@@ -149,8 +222,9 @@ export function Streams() {
         args: [activeStreamAddress, operatorUntil()],
       });
       s.done("Payroll approved.");
+      refetchApproved();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
     }
   }
 
@@ -348,51 +422,70 @@ export function Streams() {
       </div>
 
       {!showCreateForm && activeStreamAddress && (
-        <div className="grid gap-5 sm:grid-cols-2 animate-fade-in">
-          {/* Employer */}
-          <div className="rounded-2xl bg-ink/60 p-5 border border-shell/5 relative overflow-hidden">
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-gold">Employer Console</h3>
+        <div className="flex flex-col gap-5 animate-fade-in">
+          {/* What this payroll is */}
+          <div className="rounded-2xl bg-ink/60 px-5 py-4 border border-shell/5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="font-display text-xl text-shell">{(streamTitleData as string) || "Untitled payroll"}</h3>
+                {streamDescData ? <p className="mt-1 text-sm text-shell-dim leading-relaxed">{streamDescData as string}</p> : null}
+              </div>
               <button onClick={shareStream} className="btn btn-ghost text-[10px] py-1 px-2 h-7" type="button">Share</button>
             </div>
-
-            <p className="text-xs text-muted mb-4 break-all">
-              Stream Address: <span className="font-mono">{activeStreamAddress}</span>
-              <br />
-              Period: <span className="font-semibold text-shell">{period ? `${Number(period)} seconds` : "—"}</span>
-            </p>
-
-            <button onClick={approve} className="btn btn-ghost mb-4 text-xs py-1.5 px-3">
-              Approve payroll
-            </button>
-
-            <div className="flex flex-col gap-4">
-              <AmountRow label="Fund the pool" value={fundAmt} onChange={setFundAmt} onSubmit={fund} cta="Fund" busy={isPending} />
-              
-              <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
-                Employee address
-                <input
-                  value={employee}
-                  onChange={(e) => setEmployee(e.target.value)}
-                  placeholder="0x…"
-                  className="field font-mono text-sm"
-                />
-              </label>
-              <AmountRow label="Salary" value={salaryAmt} onChange={setSalaryAmt} onSubmit={setSalary} cta="Set salary" busy={isPending} />
+            {dissolved ? (
+              <p className="mt-3 chip border-coral/40 text-coral-soft inline-flex">Payroll stopped by employer</p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button onClick={revealTotals} className="btn btn-ghost text-xs py-1.5 px-3" type="button">Reveal funded / collected</button>
+              {funded !== null && <span className="chip text-sea">{Number(funded).toLocaleString()} funded</span>}
+              {collected !== null && <span className="chip text-gold">{Number(collected).toLocaleString()} collected</span>}
+              {funded !== null && collected !== null && (
+                <span className="chip">{(Number(funded) - Number(collected)).toLocaleString()} remaining</span>
+              )}
             </div>
           </div>
 
-          {/* Employee */}
-          <div className="rounded-2xl bg-ink/60 p-5 border border-shell/5 relative overflow-hidden flex flex-col justify-between">
-            <div>
-              <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-sea">Employee Console</h3>
-              <p className="mb-4 text-sm text-shell-dim">
-                {isEmployee ? "You're on this payroll." : "Connected wallet is not on this payroll."}
+          <div className="grid gap-5 sm:grid-cols-2">
+            {/* Employer */}
+            <div className="rounded-2xl bg-ink/60 p-5 border border-shell/5 relative overflow-hidden">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gold">Employer Console</h3>
+              <p className="text-xs text-muted mb-4 break-all">
+                Period: <span className="font-semibold text-shell">{period ? `${Number(period)} seconds` : "—"}</span>
               </p>
+
+              {!isApproved ? (
+                <div className="mb-4">
+                  <button onClick={approve} className="btn btn-ghost text-xs py-1.5 px-3" type="button">Approve payroll</button>
+                  <p className="mt-1.5 text-[11px] text-coral-soft">Approve once so the pool can pull your cUSDT, then fund.</p>
+                </div>
+              ) : (
+                <p className="mb-4 text-[11px] text-sea">✓ Approved — you can fund the pool.</p>
+              )}
+
+              <div className="flex flex-col gap-4">
+                <AmountRow label="Fund the pool" value={fundAmt} onChange={setFundAmt} onSubmit={fund} cta="Fund" busy={isPending || !isApproved} />
+                <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
+                  Employee address
+                  <input value={employee} onChange={(e) => setEmployee(e.target.value)} placeholder="0x…" className="field font-mono text-sm" />
+                </label>
+                <AmountRow label="Salary" value={salaryAmt} onChange={setSalaryAmt} onSubmit={setSalary} cta="Set salary" busy={isPending} />
+                {isCurrentOrganizer && !dissolved && (
+                  <button onClick={stopAndReclaim} className="btn btn-ghost self-start text-xs py-1.5 px-3 border-coral/40 text-coral-soft" type="button">
+                    Stop &amp; reclaim funds
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div>
-              <button onClick={claim} disabled={!isEmployee} className="btn btn-primary bg-sea hover:bg-sea/85 w-full flex items-center justify-center gap-2">
+            {/* Employee */}
+            <div className="rounded-2xl bg-ink/60 p-5 border border-shell/5 relative overflow-hidden flex flex-col justify-between">
+              <div>
+                <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-sea">Employee Console</h3>
+                <p className="mb-4 text-sm text-shell-dim">
+                  {dissolved ? "This payroll has been stopped." : isEmployee ? "You're on this payroll." : "Connected wallet is not on this payroll."}
+                </p>
+              </div>
+              <button onClick={claim} disabled={!isEmployee || !!dissolved} className="btn btn-primary bg-sea hover:bg-sea/85 w-full flex items-center justify-center gap-2 disabled:opacity-50">
                 <LockIcon className="h-3.5 w-3.5" /> Claim my payslip
               </button>
             </div>

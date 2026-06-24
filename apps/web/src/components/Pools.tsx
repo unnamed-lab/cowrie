@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { encryptAmount } from "@/fhe/useEncrypt";
-import { publicDecryptReached } from "@/fhe/usePublicDecrypt";
+import { publicDecryptReached, publicDecryptUint } from "@/fhe/usePublicDecrypt";
 import { CROWDFUND_ABI, CROWDFUND_FACTORY_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
 import { CROWDFUND_STATE } from "@cowrie/shared";
 import { useDeepLink, copyShareLink } from "@/lib/deeplink";
@@ -64,7 +65,10 @@ function CampaignChip({
 export function Pools() {
   const { address, isConnected } = useAccount();
   const { addresses, configured } = useCowrieAddresses();
-  const { writeContractAsync, isPending } = useWriteContract();
+  const queryClient = useQueryClient();
+  const { writeContractAsync, isPending } = useWriteContract({
+    mutation: { onSettled: () => queryClient.invalidateQueries({ queryKey: ["readContract"] }) },
+  });
   const s = useStatus();
 
   // Selected campaign state — no hardcoded default; comes from a deep link, a
@@ -146,6 +150,45 @@ export function Pools() {
     functionName: "reachedHandle",
     query: { enabled: false },
   });
+  const { data: campTitle } = useReadContract({
+    abi: CROWDFUND_ABI,
+    address: activeCampaignAddress,
+    functionName: "title",
+    query: { enabled: !!activeCampaignAddress && configured },
+  });
+  const { data: campDescription } = useReadContract({
+    abi: CROWDFUND_ABI,
+    address: activeCampaignAddress,
+    functionName: "description",
+    query: { enabled: !!activeCampaignAddress && configured },
+  });
+  const { data: totalHandle } = useReadContract({
+    abi: CROWDFUND_ABI,
+    address: activeCampaignAddress,
+    functionName: "totalRaisedHandle",
+    query: { enabled: !!activeCampaignAddress && configured },
+  });
+
+  const { data: isApproved, refetch: refetchApproved } = useReadContract({
+    abi: TOKEN_ABI,
+    address: token,
+    functionName: "isOperator",
+    args: address && activeCampaignAddress ? [address, activeCampaignAddress] : undefined,
+    query: { enabled: !!token && !!address && !!activeCampaignAddress && configured },
+  });
+
+  const [raised, setRaised] = useState<string | null>(null);
+  async function revealRaised() {
+    if (!totalHandle) return;
+    try {
+      s.working("Revealing the total raised so far…");
+      const v = await publicDecryptUint(totalHandle as string);
+      setRaised(v.toString());
+      s.done("Total raised revealed (individual gifts stay private).");
+    } catch (e) {
+      s.error(e);
+    }
+  }
 
   const stateName = state !== undefined ? CROWDFUND_STATE[Number(state)] : "—";
   const deadlineDate = deadline ? new Date(Number(deadline) * 1000) : undefined;
@@ -170,9 +213,10 @@ export function Pools() {
         functionName: "setOperator",
         args: [activeCampaignAddress, operatorUntil()],
       });
-      s.done("Campaign approved.");
+      s.done("Campaign approved — you can contribute now.");
+      refetchApproved();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
     }
   }
 
@@ -421,6 +465,25 @@ export function Pools() {
 
       {!showCreateForm && activeCampaignAddress && (
         <div className="animate-fade-in flex flex-col gap-5">
+          {/* What this campaign is for */}
+          <div className="rounded-2xl bg-ink/60 px-5 py-4 border border-shell/5">
+            <h3 className="font-display text-xl text-shell">{(campTitle as string) || "Untitled campaign"}</h3>
+            {campDescription ? (
+              <p className="mt-1 text-sm text-shell-dim leading-relaxed">{campDescription as string}</p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button onClick={revealRaised} className="btn btn-ghost text-xs py-1.5 px-3" type="button">
+                Reveal total raised
+              </button>
+              {raised !== null && (
+                <span className="chip text-sea">
+                  <span className="font-semibold">{Number(raised).toLocaleString()}</span> cUSDT raised
+                </span>
+              )}
+              <span className="text-[11px] text-muted">Progress is public; individual gifts stay private.</span>
+            </div>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Goal Panel */}
             <div className="rounded-2xl bg-ink/60 px-5 py-4 border border-shell/5">
@@ -460,11 +523,16 @@ export function Pools() {
           </div>
 
           {/* Actions */}
-          <div className="flex flex-col gap-4">
-            <button onClick={approve} className="btn btn-ghost self-start text-xs py-1.5 px-3">
-              Approve Campaign Operator
-            </button>
-            <AmountRow value={amount} onChange={setAmount} onSubmit={contribute} cta="Contribute privately" busy={isPending} />
+          <div className="flex flex-col gap-3">
+            {!isApproved && (
+              <button onClick={approve} className="btn btn-ghost self-start text-xs py-1.5 px-3">
+                Approve Campaign Operator
+              </button>
+            )}
+            <AmountRow value={amount} onChange={setAmount} onSubmit={contribute} cta="Contribute privately" busy={isPending || !isApproved} />
+            {!isApproved && (
+              <span className="text-[11px] text-coral-soft">Approve the operator first so the campaign can pull your cUSDT.</span>
+            )}
           </div>
 
           {/* Lifecycle management — each step is enabled only when it applies, so
