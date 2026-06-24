@@ -7,7 +7,7 @@ import { encryptAmount } from "@/fhe/useEncrypt";
 import { PAYROLL_ABI, PAYROLL_FACTORY_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
 import { useDeepLink, copyShareLink } from "@/lib/deeplink";
 import { publicDecryptUint } from "@/fhe/usePublicDecrypt";
-import { ModeCard, AmountRow, StatusLine, useStatus } from "./ui";
+import { ModeCard, AmountRow, StatusLine, useStatus, Spinner } from "./ui";
 import { LockIcon } from "./Icons";
 
 /**
@@ -29,7 +29,17 @@ function StreamChip({
     functionName: "period",
   });
 
-  const periodStr = period ? `${Number(period) / 3600}h` : "Payroll";
+  let periodStr = "Payroll";
+  if (period) {
+    const p = Number(period);
+    if (p % 3600 === 0) {
+      periodStr = `${p / 3600}h`;
+    } else if (p % 60 === 0) {
+      periodStr = `${p / 60}m`;
+    } else {
+      periodStr = `${p}s`;
+    }
+  }
 
   return (
     <button
@@ -37,7 +47,7 @@ function StreamChip({
       type="button"
       className={`chip text-xs font-semibold py-2 px-3 transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
         isActive
-          ? "border-sea bg-sea/15 text-sea shadow-md shadow-sea/5 scale-105"
+          ? "border-sea bg-sea/15 text-sea shadow-md shadow-sea/5"
           : "border-shell/10 bg-ink/40 text-shell-dim hover:border-sea/30 hover:bg-sea/5"
       }`}
     >
@@ -180,11 +190,20 @@ export function Streams() {
     refetchApproved();
   };
 
+  const [isApproving, setIsApproving] = useState(false);
+  const [isFunding, setIsFunding] = useState(false);
+  const [isSettingSalary, setIsSettingSalary] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [isReclaiming, setIsReclaiming] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
+
   const [funded, setFunded] = useState<string | null>(null);
   const [collected, setCollected] = useState<string | null>(null);
   async function revealTotals() {
     if (!fundedHandle || !collectedHandle) return;
     try {
+      setIsRevealing(true);
       s.working("Revealing the payroll funded & collected totals…");
       const [f, c] = await Promise.all([
         publicDecryptUint(fundedHandle as string),
@@ -195,18 +214,23 @@ export function Streams() {
       s.done("Totals revealed (individual salaries stay private).");
     } catch (e) {
       s.error(e);
+    } finally {
+      setIsRevealing(false);
     }
   }
 
   async function stopAndReclaim() {
     if (!activeStreamAddress) return;
     try {
+      setIsReclaiming(true);
       s.working("Stopping payroll and reclaiming unspent funds…");
       await writeContractAsync({ abi: PAYROLL_ABI, address: activeStreamAddress, functionName: "stopAndReclaim", args: [] });
       s.done("Payroll stopped; remaining balance returned to you.");
       refetchAll();
     } catch (e) {
       s.error(e);
+    } finally {
+      setIsReclaiming(false);
     }
   }
 
@@ -214,6 +238,7 @@ export function Streams() {
   async function approve() {
     if (!token || !activeStreamAddress) return;
     try {
+      setIsApproving(true);
       s.working("Approving payroll to move your cUSDT…");
       await writeContractAsync({
         abi: TOKEN_ABI,
@@ -225,12 +250,15 @@ export function Streams() {
       refetchApproved();
     } catch (e) {
       s.error(e);
+    } finally {
+      setIsApproving(false);
     }
   }
 
   async function fund() {
     if (!address || !activeStreamAddress) return;
     try {
+      setIsFunding(true);
       s.working("Encrypting payroll funds…");
       const { handle, inputProof } = await encryptAmount(activeStreamAddress, address, BigInt(fundAmt));
       s.working("Funding payroll stream…");
@@ -243,13 +271,16 @@ export function Streams() {
       s.done("Payroll funded — the balance stays encrypted.");
       refetchAll();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
+    } finally {
+      setIsFunding(false);
     }
   }
 
   async function setSalary() {
     if (!address || !activeStreamAddress || !employee) return;
     try {
+      setIsSettingSalary(true);
       s.working("Encrypting salary amount…");
       const { handle, inputProof } = await encryptAmount(activeStreamAddress, address, BigInt(salaryAmt));
       s.working("Setting salary…");
@@ -262,19 +293,24 @@ export function Streams() {
       s.done("Salary set. Only that employee (and you) can decrypt it.");
       refetchAll();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
+    } finally {
+      setIsSettingSalary(false);
     }
   }
 
   async function claim() {
     if (!activeStreamAddress) return;
     try {
+      setIsClaiming(true);
       s.working("Claiming your payslip…");
       await writeContractAsync({ abi: PAYROLL_ABI, address: activeStreamAddress, functionName: "claim", args: [] });
       s.done("Claimed. The amount paid stays encrypted.");
       refetchAll();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
+    } finally {
+      setIsClaiming(false);
     }
   }
 
@@ -294,6 +330,7 @@ export function Streams() {
     if (!token || !addresses?.PayrollStreamsFactory) return;
     try {
       if (!streamTitle.trim()) throw new Error("A payroll title is required.");
+      setIsDeploying(true);
       s.working("Deploying new payroll stream (requires 0.005 ETH stake)…");
       const periodSec = BigInt(streamPeriodInput);
 
@@ -310,6 +347,8 @@ export function Streams() {
       refetchUserStreams();
     } catch (e) {
       s.error(e);
+    } finally {
+      setIsDeploying(false);
     }
   }
 
@@ -380,17 +419,18 @@ export function Streams() {
 
             <button
               onClick={handleCreateStream}
-              disabled={isPending}
-              className="btn btn-primary self-start text-xs py-2 px-5 bg-sea hover:bg-sea/85"
+              disabled={isPending || isDeploying}
+              className="btn btn-primary self-start text-xs py-2 px-5 bg-sea hover:bg-sea/85 flex items-center gap-1.5"
               type="button"
             >
-              Deploy Stream Contract
+              {isDeploying ? <Spinner /> : null}
+              {isDeploying ? "Deploying..." : "Deploy Stream Contract"}
             </button>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             {/* Active stream list chips */}
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap gap-2.5 max-h-32 overflow-y-auto scrollbar-thin pr-1 py-1.5 px-0.5">
               {allUserStreams.map((addr) => (
                 <StreamChip
                   key={addr}
@@ -435,8 +475,11 @@ export function Streams() {
             {dissolved ? (
               <p className="mt-3 chip border-coral/40 text-coral-soft inline-flex">Payroll stopped by employer</p>
             ) : null}
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <button onClick={revealTotals} className="btn btn-ghost text-xs py-1.5 px-3" type="button">Reveal funded / collected</button>
+             <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button onClick={revealTotals} disabled={isPending || isRevealing} className="btn btn-ghost text-xs py-1.5 px-3 flex items-center gap-1.5" type="button">
+                {isRevealing ? <Spinner /> : null}
+                {isRevealing ? "Decrypting..." : "Reveal funded / collected"}
+              </button>
               {funded !== null && <span className="chip text-sea">{Number(funded).toLocaleString()} funded</span>}
               {collected !== null && <span className="chip text-gold">{Number(collected).toLocaleString()} collected</span>}
               {funded !== null && collected !== null && (
@@ -455,7 +498,10 @@ export function Streams() {
 
               {!isApproved ? (
                 <div className="mb-4">
-                  <button onClick={approve} className="btn btn-ghost text-xs py-1.5 px-3" type="button">Approve payroll</button>
+                  <button onClick={approve} disabled={isPending || isApproving} className="btn btn-ghost text-xs py-1.5 px-3 flex items-center gap-1.5" type="button">
+                    {isApproving ? <Spinner /> : null}
+                    {isApproving ? "Approving..." : "Approve payroll"}
+                  </button>
                   <p className="mt-1.5 text-[11px] text-coral-soft">Approve once so the pool can pull your cUSDT, then fund.</p>
                 </div>
               ) : (
@@ -463,15 +509,32 @@ export function Streams() {
               )}
 
               <div className="flex flex-col gap-4">
-                <AmountRow label="Fund the pool" value={fundAmt} onChange={setFundAmt} onSubmit={fund} cta="Fund" busy={isPending || !isApproved} />
+                <AmountRow
+                  label="Fund the pool"
+                  value={fundAmt}
+                  onChange={setFundAmt}
+                  onSubmit={fund}
+                  cta="Fund"
+                  busy={isFunding}
+                  disabled={isPending || !isApproved}
+                />
                 <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
                   Employee address
                   <input value={employee} onChange={(e) => setEmployee(e.target.value)} placeholder="0x…" className="field font-mono text-sm" />
                 </label>
-                <AmountRow label="Salary" value={salaryAmt} onChange={setSalaryAmt} onSubmit={setSalary} cta="Set salary" busy={isPending} />
+                <AmountRow
+                  label="Salary"
+                  value={salaryAmt}
+                  onChange={setSalaryAmt}
+                  onSubmit={setSalary}
+                  cta="Set salary"
+                  busy={isSettingSalary}
+                  disabled={isPending}
+                />
                 {isCurrentOrganizer && !dissolved && (
-                  <button onClick={stopAndReclaim} className="btn btn-ghost self-start text-xs py-1.5 px-3 border-coral/40 text-coral-soft" type="button">
-                    Stop &amp; reclaim funds
+                  <button onClick={stopAndReclaim} disabled={isPending || isReclaiming} className="btn btn-ghost self-start text-xs py-1.5 px-3 border-coral/40 text-coral-soft flex items-center gap-1.5" type="button">
+                    {isReclaiming ? <Spinner /> : null}
+                    {isReclaiming ? "Stopping..." : "Stop & reclaim funds"}
                   </button>
                 )}
               </div>
@@ -485,8 +548,13 @@ export function Streams() {
                   {dissolved ? "This payroll has been stopped." : isEmployee ? "You're on this payroll." : "Connected wallet is not on this payroll."}
                 </p>
               </div>
-              <button onClick={claim} disabled={!isEmployee || !!dissolved} className="btn btn-primary bg-sea hover:bg-sea/85 w-full flex items-center justify-center gap-2 disabled:opacity-50">
-                <LockIcon className="h-3.5 w-3.5" /> Claim my payslip
+              <button
+                onClick={claim}
+                disabled={!isEmployee || !!dissolved || isPending || isClaiming}
+                className="btn btn-primary bg-sea hover:bg-sea/85 w-full flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isClaiming ? <Spinner /> : <LockIcon className="h-3.5 w-3.5" />}
+                {isClaiming ? "Claiming..." : "Claim my payslip"}
               </button>
             </div>
           </div>

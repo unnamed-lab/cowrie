@@ -209,7 +209,7 @@ export default function Home() {
                   </span>
                   {m.label}
                 </span>
-                <span className="text-[10px] text-muted font-bold uppercase tracking-wider mt-0.5">{m.hint}</span>
+                <span className="hidden sm:block text-[10px] text-muted font-bold uppercase tracking-wider mt-0.5">{m.hint}</span>
               </button>
             );
           })}

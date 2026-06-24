@@ -67,6 +67,7 @@ export function AmountRow({
   onSubmit,
   cta,
   busy,
+  disabled,
 }: {
   label?: string;
   value: string;
@@ -74,6 +75,7 @@ export function AmountRow({
   onSubmit: () => void;
   cta: string;
   busy?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -82,6 +84,7 @@ export function AmountRow({
         <span className="relative flex items-center mt-1">
           <input
             value={value}
+            disabled={disabled || busy}
             onChange={(e) => onChange(e.target.value)}
             inputMode="numeric"
             className="field w-full pr-16 text-base sm:w-52"
@@ -89,7 +92,7 @@ export function AmountRow({
           <span className="pointer-events-none absolute right-4 text-xs font-bold text-gold">cUSDT</span>
         </span>
       </label>
-      <button onClick={onSubmit} disabled={busy} className="btn btn-primary self-start sm:self-auto">
+      <button onClick={onSubmit} disabled={disabled || busy} className="btn btn-primary self-start sm:self-auto">
         {busy ? <Spinner /> : <LockIcon className="h-3.5 w-3.5" />}
         {busy ? "Encrypting..." : cta}
       </button>

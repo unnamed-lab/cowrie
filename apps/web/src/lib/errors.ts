@@ -58,6 +58,11 @@ export function formatTxError(err: unknown): string {
     return "You cancelled the request in your wallet.";
   }
 
+  // Map a known revert reason if present (takes precedence over generic network/RPC errors).
+  for (const key of Object.keys(REVERT_MESSAGES)) {
+    if (text.includes(key.toLowerCase())) return REVERT_MESSAGES[key];
+  }
+
   // Likely already executed / a duplicate the slow RPC didn't reflect yet.
   if (/already known|nonce too low|replacement transaction underpriced|tx already/.test(text)) {
     return "That action may have already gone through — refreshing in a moment.";
@@ -71,11 +76,6 @@ export function formatTxError(err: unknown): string {
   // Network / RPC slowness.
   if (/timeout|timed out|failed to fetch|network error|econnreset|fetch failed|503|429|load failed/.test(text)) {
     return "The network is slow right now — please try again.";
-  }
-
-  // Map a known revert reason if present.
-  for (const key of Object.keys(REVERT_MESSAGES)) {
-    if (text.includes(key)) return REVERT_MESSAGES[key];
   }
 
   // Generic revert without a recognised reason.

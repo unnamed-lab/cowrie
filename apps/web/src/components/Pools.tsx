@@ -8,7 +8,7 @@ import { publicDecryptReached, publicDecryptUint } from "@/fhe/usePublicDecrypt"
 import { CROWDFUND_ABI, CROWDFUND_FACTORY_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
 import { CROWDFUND_STATE } from "@cowrie/shared";
 import { useDeepLink, copyShareLink } from "@/lib/deeplink";
-import { ModeCard, AmountRow, StatusLine, useStatus } from "./ui";
+import { ModeCard, AmountRow, StatusLine, useStatus, Spinner } from "./ui";
 
 const STATE_TONE: Record<string, string> = {
   Active: "text-sea",
@@ -44,7 +44,7 @@ function CampaignChip({
       type="button"
       className={`chip text-xs font-semibold py-2 px-3 transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
         isActive
-          ? "border-sea bg-sea/15 text-sea shadow-md shadow-sea/5 scale-105"
+          ? "border-sea bg-sea/15 text-sea shadow-md shadow-sea/5"
           : "border-shell/10 bg-ink/40 text-shell-dim hover:border-sea/30 hover:bg-sea/5"
       }`}
     >
@@ -177,16 +177,28 @@ export function Pools() {
     query: { enabled: !!token && !!address && !!activeCampaignAddress && configured },
   });
 
+  const [isApproving, setIsApproving] = useState(false);
+  const [isContributing, setIsContributing] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isSettling, setIsSettling] = useState(false);
+  const [isReleasing, setIsReleasing] = useState(false);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [isRevealingRaised, setIsRevealingRaised] = useState(false);
+
   const [raised, setRaised] = useState<string | null>(null);
   async function revealRaised() {
     if (!totalHandle) return;
     try {
+      setIsRevealingRaised(true);
       s.working("Revealing the total raised so far…");
       const v = await publicDecryptUint(totalHandle as string);
       setRaised(v.toString());
       s.done("Total raised revealed (individual gifts stay private).");
     } catch (e) {
       s.error(e);
+    } finally {
+      setIsRevealingRaised(false);
     }
   }
 
@@ -206,6 +218,7 @@ export function Pools() {
   async function approve() {
     if (!token || !activeCampaignAddress) return;
     try {
+      setIsApproving(true);
       s.working("Approving the campaign to move your cUSDT…");
       await writeContractAsync({
         abi: TOKEN_ABI,
@@ -217,12 +230,15 @@ export function Pools() {
       refetchApproved();
     } catch (e) {
       s.error(e);
+    } finally {
+      setIsApproving(false);
     }
   }
 
   async function contribute() {
     if (!address || !activeCampaignAddress) return;
     try {
+      setIsContributing(true);
       s.working("Encrypting your contribution…");
       const { handle, inputProof } = await encryptAmount(activeCampaignAddress, address, BigInt(amount));
       s.working("Contributing privately…");
@@ -235,25 +251,31 @@ export function Pools() {
       s.done("Contributed. Only the goal/total comparison is ever revealed — never your amount.");
       refetchAll();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
+    } finally {
+      setIsContributing(false);
     }
   }
 
   async function finalize() {
     if (!activeCampaignAddress) return;
     try {
+      setIsFinalizing(true);
       s.working("Finalizing — comparing the encrypted total against the goal…");
       await writeContractAsync({ abi: CROWDFUND_ABI, address: activeCampaignAddress, functionName: "finalize", args: [] });
       s.done("Finalized. Now reveal & settle the goal boolean.");
       refetchAll();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
+    } finally {
+      setIsFinalizing(false);
     }
   }
 
   async function revealAndSettle() {
     if (!activeCampaignAddress) return;
     try {
+      setIsSettling(true);
       s.working("Fetching the encrypted goal-reached handle…");
       const { data: handle } = await refetchReached();
       if (!handle) throw new Error("No handle yet — finalize first.");
@@ -269,18 +291,29 @@ export function Pools() {
       s.done(`Settled — campaign ${reached ? "Succeeded" : "Failed"}.`);
       refetchAll();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
+    } finally {
+      setIsSettling(false);
     }
   }
 
-  function action(fn: "release" | "refund") {
+  async function action(fn: "release" | "refund") {
     if (!activeCampaignAddress) return;
-    writeContractAsync({ abi: CROWDFUND_ABI, address: activeCampaignAddress, functionName: fn, args: [] })
-      .then(() => {
-        s.done(fn === "release" ? "Released to the beneficiary." : "Refund sent.");
-        refetchAll();
-      })
-      .catch((e) => s.error((e as Error).message));
+    const isRel = fn === "release";
+    try {
+      if (isRel) setIsReleasing(true);
+      else setIsRefunding(true);
+
+      s.working(isRel ? "Releasing funds to beneficiary…" : "Claiming your refund…");
+      await writeContractAsync({ abi: CROWDFUND_ABI, address: activeCampaignAddress, functionName: fn, args: [] });
+      s.done(isRel ? "Released to the beneficiary." : "Refund sent.");
+      refetchAll();
+    } catch (e) {
+      s.error(e);
+    } finally {
+      if (isRel) setIsReleasing(false);
+      else setIsRefunding(false);
+    }
   }
 
   // Load custom campaign address
@@ -299,6 +332,7 @@ export function Pools() {
     if (!token || !addresses?.CrowdfundFactory) return;
     try {
       if (!campaignTitle.trim()) throw new Error("A campaign title is required.");
+      setIsDeploying(true);
       s.working("Deploying new crowdfunding campaign (requires 0.005 ETH stake)…");
       const beneficiaryAddr = (campaignBeneficiary || address) as `0x${string}`;
       if (!beneficiaryAddr) throw new Error("Must specify a beneficiary address.");
@@ -318,7 +352,9 @@ export function Pools() {
       setShowCreateForm(false);
       refetchUserCampaigns();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
+    } finally {
+      setIsDeploying(false);
     }
   }
 
@@ -422,17 +458,18 @@ export function Pools() {
 
             <button
               onClick={handleCreateCampaign}
-              disabled={isPending}
-              className="btn btn-primary self-start text-xs py-2 px-5 bg-sea hover:bg-sea/85"
+              disabled={isPending || isDeploying}
+              className="btn btn-primary self-start text-xs py-2 px-5 bg-sea hover:bg-sea/85 flex items-center gap-1.5"
               type="button"
             >
-              Deploy Campaign Contract
+              {isDeploying ? <Spinner /> : null}
+              {isDeploying ? "Deploying..." : "Deploy Campaign Contract"}
             </button>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             {/* Active campaigns chips */}
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap gap-2.5 max-h-32 overflow-y-auto scrollbar-thin pr-1 py-1.5 px-0.5">
               {allUserCampaigns.map((addr) => (
                 <CampaignChip
                   key={addr}
@@ -479,8 +516,9 @@ export function Pools() {
                       <span className="font-display text-lg text-sea">{Number(raised).toLocaleString()}</span> raised
                     </>
                   ) : (
-                    <button onClick={revealRaised} className="btn btn-ghost text-xs py-1.5 px-3" type="button">
-                      Reveal raised
+                    <button onClick={revealRaised} disabled={isPending || isRevealingRaised} className="btn btn-ghost text-xs py-1.5 px-3 flex items-center gap-1.5" type="button">
+                      {isRevealingRaised ? <Spinner /> : null}
+                      {isRevealingRaised ? "Decrypting..." : "Reveal raised"}
                     </button>
                   )}
                 </span>
@@ -547,11 +585,12 @@ export function Pools() {
           {/* Actions */}
           <div className="flex flex-col gap-3">
             {!isApproved && (
-              <button onClick={approve} className="btn btn-ghost self-start text-xs py-1.5 px-3">
-                Approve Campaign Operator
+              <button onClick={approve} disabled={isPending || isApproving} className="btn btn-ghost self-start text-xs py-1.5 px-3 flex items-center gap-1.5">
+                {isApproving ? <Spinner /> : null}
+                {isApproving ? "Approving..." : "Approve Campaign Operator"}
               </button>
             )}
-            <AmountRow value={amount} onChange={setAmount} onSubmit={contribute} cta="Contribute privately" busy={isPending || !isApproved} />
+            <AmountRow value={amount} onChange={setAmount} onSubmit={contribute} cta="Contribute privately" busy={isContributing} disabled={isPending || !isApproved} />
             {!isApproved && (
               <span className="text-[11px] text-coral-soft">Approve the operator first so the campaign can pull your cUSDT.</span>
             )}
@@ -570,35 +609,39 @@ export function Pools() {
             <div className="flex flex-wrap gap-2.5">
               <button
                 onClick={finalize}
-                disabled={isPending || stateName !== "Active" || !isDeadlinePassed}
+                disabled={isPending || stateName !== "Active" || !isDeadlinePassed || isFinalizing}
                 title={stateName !== "Active" ? "Already finalized." : !isDeadlinePassed ? "Available after the deadline." : "Compare the encrypted total to the goal."}
-                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40"
+                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40 flex items-center gap-1.5"
               >
-                1 · Finalize
+                {isFinalizing ? <Spinner /> : null}
+                {isFinalizing ? "Finalizing..." : "1 · Finalize"}
               </button>
               <button
                 onClick={revealAndSettle}
-                disabled={isPending || stateName !== "Deciding"}
+                disabled={isPending || stateName !== "Deciding" || isSettling}
                 title={stateName !== "Deciding" ? "Finalize first." : "Reveal the goal-reached boolean and settle on-chain."}
-                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40"
+                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40 flex items-center gap-1.5"
               >
-                2 · Reveal &amp; settle
+                {isSettling ? <Spinner /> : null}
+                {isSettling ? "Settling..." : "2 · Reveal & settle"}
               </button>
               <button
                 onClick={() => action("release")}
-                disabled={isPending || stateName !== "Succeeded"}
+                disabled={isPending || stateName !== "Succeeded" || isReleasing}
                 title={stateName !== "Succeeded" ? "Only after the goal is reached." : "Send funds to the beneficiary."}
-                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40"
+                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40 flex items-center gap-1.5"
               >
-                Release funds
+                {isReleasing ? <Spinner /> : null}
+                {isReleasing ? "Releasing..." : "Release funds"}
               </button>
               <button
                 onClick={() => action("refund")}
-                disabled={isPending || stateName !== "Failed"}
+                disabled={isPending || stateName !== "Failed" || isRefunding}
                 title={stateName !== "Failed" ? "Only if the campaign failed." : "Reclaim your contribution."}
-                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40 border-coral/40 text-coral-soft"
+                className="btn btn-ghost text-xs py-2 px-4 h-9 disabled:opacity-40 border-coral/40 text-coral-soft flex items-center gap-1.5"
               >
-                Claim refund
+                {isRefunding ? <Spinner /> : null}
+                {isRefunding ? "Refunding..." : "Claim refund"}
               </button>
             </div>
           </div>
