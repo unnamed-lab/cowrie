@@ -24,15 +24,14 @@ export function getFheInstance(): Promise<FheInstance> {
 
   _initPromise = (async () => {
     const { initSDK, createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web");
+    const { FHE_RPC } = await import("@/lib/wagmi");
     await initSDK(); // load WASM
 
-    type Network = Parameters<typeof createInstance>[0]["network"];
-    const injected =
-      typeof window !== "undefined" ? (window as unknown as { ethereum?: Network }).ethereum : undefined;
-
+    // Use a fast, deterministic HTTP RPC for relayer reads rather than the
+    // wallet's (often slow) injected provider.
     const instance = await createInstance({
       ...SepoliaConfig,
-      network: injected ?? "https://ethereum-sepolia-rpc.publicnode.com",
+      network: FHE_RPC,
     });
     _instance = instance;
     return instance;

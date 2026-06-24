@@ -2,6 +2,7 @@
 
 import { ReactNode, useState } from "react";
 import { LockIcon, CheckIcon, AlertIcon } from "./Icons";
+import { formatTxError } from "@/lib/errors";
 
 export type StatusKind = "idle" | "working" | "done" | "error";
 
@@ -13,7 +14,8 @@ export function useStatus() {
     kind: state.kind,
     working: (msg: string) => setState({ msg, kind: "working" }),
     done: (msg: string) => setState({ msg, kind: "done" }),
-    error: (msg: string) => setState({ msg, kind: "error" }),
+    // Accepts a raw error (or string) and renders one short, human sentence.
+    error: (e: unknown) => setState({ msg: formatTxError(e), kind: "error" }),
   };
 }
 
