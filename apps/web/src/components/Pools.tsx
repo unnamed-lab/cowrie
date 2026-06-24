@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { encryptAmount } from "@/fhe/useEncrypt";
 import { publicDecryptReached } from "@/fhe/usePublicDecrypt";
 import { CROWDFUND_ABI, CROWDFUND_FACTORY_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
 import { CROWDFUND_STATE } from "@cowrie/shared";
+import { useDeepLink, copyShareLink } from "@/lib/deeplink";
 import { ModeCard, AmountRow, StatusLine, useStatus } from "./ui";
 
 const STATE_TONE: Record<string, string> = {
@@ -66,10 +67,11 @@ export function Pools() {
   const { writeContractAsync, isPending } = useWriteContract();
   const s = useStatus();
 
-  // Selected campaign state
-  const defaultCrowdfundAddr = addresses?.Crowdfund as `0x${string}` | undefined;
+  // Selected campaign state — no hardcoded default; comes from a deep link, a
+  // manual load, or the first campaign you created.
+  const deepLinked = useDeepLink("campaign");
   const [selectedCampaignAddress, setSelectedCampaignAddress] = useState<string | undefined>(undefined);
-  const activeCampaignAddress = (selectedCampaignAddress || defaultCrowdfundAddr) as `0x${string}` | undefined;
+  const activeCampaignAddress = selectedCampaignAddress as `0x${string}` | undefined;
 
   // Custom load and creation state
   const [customAddressInput, setCustomAddressInput] = useState("");
@@ -91,15 +93,25 @@ export function Pools() {
     query: { enabled: !!addresses?.CrowdfundFactory && !!address && configured },
   });
 
-  // Extract unique campaign addresses
+  // Campaigns you created, from the factory registry.
   const userCampaigns = (userCampaignsData as `0x${string}`[]) || [];
   const allUserCampaigns = Array.from(
-    new Set(
-      [defaultCrowdfundAddr, ...userCampaigns].filter(
-        (addr): addr is `0x${string}` => !!addr && addr !== "0x0000000000000000000000000000000000000000"
-      )
-    )
+    new Set(userCampaigns.filter((addr) => !!addr && addr !== "0x0000000000000000000000000000000000000000")),
   );
+
+  // Auto-select: deep link wins, else the first campaign you created.
+  useEffect(() => {
+    if (deepLinked) setSelectedCampaignAddress(deepLinked);
+  }, [deepLinked]);
+  useEffect(() => {
+    if (!selectedCampaignAddress && allUserCampaigns.length > 0) setSelectedCampaignAddress(allUserCampaigns[0]);
+  }, [selectedCampaignAddress, allUserCampaigns]);
+
+  async function shareCampaign() {
+    if (!activeCampaignAddress) return;
+    await copyShareLink("campaign", activeCampaignAddress);
+    s.done("Share link copied — opens this campaign for whoever you send it to.");
+  }
 
   // Read active campaign state details
   const { data: state, refetch: refetchState } = useReadContract({
@@ -408,7 +420,10 @@ export function Pools() {
           </div>
 
           <div className="rounded-2xl bg-ink/60 p-5 border border-shell/5 flex flex-col gap-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-gold">Campaign Details</h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gold">Campaign Details</h3>
+              <button onClick={shareCampaign} className="btn btn-ghost text-[10px] py-1 px-2 h-7" type="button">Share</button>
+            </div>
             <p className="text-xs text-muted leading-relaxed font-mono break-all">
               Campaign address: {activeCampaignAddress}
               <br />

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { encryptAmount } from "@/fhe/useEncrypt";
 import { PAYROLL_ABI, PAYROLL_FACTORY_ABI, TOKEN_ABI, useCowrieAddresses, operatorUntil } from "@/lib/contracts";
+import { useDeepLink, copyShareLink } from "@/lib/deeplink";
 import { ModeCard, AmountRow, StatusLine, useStatus } from "./ui";
 import { LockIcon } from "./Icons";
 
@@ -57,10 +58,11 @@ export function Streams() {
   const { writeContractAsync, isPending } = useWriteContract();
   const s = useStatus();
 
-  // Selected stream state
-  const defaultStreamAddr = addresses?.PayrollStreams as `0x${string}` | undefined;
+  // Selected stream state — no hardcoded default; comes from a deep link, a
+  // manual load, or the first stream you belong to.
+  const deepLinked = useDeepLink("stream");
   const [selectedStreamAddress, setSelectedStreamAddress] = useState<string | undefined>(undefined);
-  const activeStreamAddress = (selectedStreamAddress || defaultStreamAddr) as `0x${string}` | undefined;
+  const activeStreamAddress = selectedStreamAddress as `0x${string}` | undefined;
 
   // Custom load and creation state
   const [customAddressInput, setCustomAddressInput] = useState("");
@@ -83,15 +85,25 @@ export function Streams() {
     query: { enabled: !!addresses?.PayrollStreamsFactory && !!address && configured },
   });
 
-  // Extract unique stream addresses
+  // Streams you created, from the factory registry.
   const userStreams = (userStreamsData as `0x${string}`[]) || [];
   const allUserStreams = Array.from(
-    new Set(
-      [defaultStreamAddr, ...userStreams].filter(
-        (addr): addr is `0x${string}` => !!addr && addr !== "0x0000000000000000000000000000000000000000"
-      )
-    )
+    new Set(userStreams.filter((addr) => !!addr && addr !== "0x0000000000000000000000000000000000000000")),
   );
+
+  // Auto-select: deep link wins, else the first stream you belong to.
+  useEffect(() => {
+    if (deepLinked) setSelectedStreamAddress(deepLinked);
+  }, [deepLinked]);
+  useEffect(() => {
+    if (!selectedStreamAddress && allUserStreams.length > 0) setSelectedStreamAddress(allUserStreams[0]);
+  }, [selectedStreamAddress, allUserStreams]);
+
+  async function shareStream() {
+    if (!activeStreamAddress) return;
+    await copyShareLink("stream", activeStreamAddress);
+    s.done("Share link copied — opens this payroll for whoever you send it to.");
+  }
 
   // Read active stream details
   const { data: period, refetch: refetchPeriod } = useReadContract({
@@ -315,8 +327,11 @@ export function Streams() {
         <div className="grid gap-5 sm:grid-cols-2 animate-fade-in">
           {/* Employer */}
           <div className="rounded-2xl bg-ink/60 p-5 border border-shell/5 relative overflow-hidden">
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gold">Employer Console</h3>
-            
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gold">Employer Console</h3>
+              <button onClick={shareStream} className="btn btn-ghost text-[10px] py-1 px-2 h-7" type="button">Share</button>
+            </div>
+
             <p className="text-xs text-muted mb-4 break-all">
               Stream Address: <span className="font-mono">{activeStreamAddress}</span>
               <br />
