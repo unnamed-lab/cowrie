@@ -471,16 +471,38 @@ export function Pools() {
             {campDescription ? (
               <p className="mt-1 text-sm text-shell-dim leading-relaxed">{campDescription as string}</p>
             ) : null}
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <button onClick={revealRaised} className="btn btn-ghost text-xs py-1.5 px-3" type="button">
-                Reveal total raised
-              </button>
-              {raised !== null && (
-                <span className="chip text-sea">
-                  <span className="font-semibold">{Number(raised).toLocaleString()}</span> cUSDT raised
+            <div className="mt-4">
+              <div className="flex items-baseline justify-between gap-2 text-sm">
+                <span className="text-shell-dim">
+                  {raised !== null ? (
+                    <>
+                      <span className="font-display text-lg text-sea">{Number(raised).toLocaleString()}</span> raised
+                    </>
+                  ) : (
+                    <button onClick={revealRaised} className="btn btn-ghost text-xs py-1.5 px-3" type="button">
+                      Reveal raised
+                    </button>
+                  )}
                 </span>
+                <span className="text-muted">
+                  of <span className="font-semibold text-gold">{Number(goal ?? 0n).toLocaleString()}</span> cUSDT goal
+                </span>
+              </div>
+              {raised !== null && goal ? (
+                <>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-ink">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sea to-gold transition-all"
+                      style={{ width: `${Math.min(100, Number(goal) ? (Number(raised) / Number(goal)) * 100 : 0)}%` }}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-muted">
+                    {Math.floor(Number(goal) ? (Number(raised) / Number(goal)) * 100 : 0)}% of goal · progress is public, individual gifts stay private.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-[11px] text-muted">Progress is public; individual gifts stay private.</p>
               )}
-              <span className="text-[11px] text-muted">Progress is public; individual gifts stay private.</span>
             </div>
           </div>
 

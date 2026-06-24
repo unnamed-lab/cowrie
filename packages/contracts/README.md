@@ -1,110 +1,33 @@
-# FHEVM Hardhat Template
+# @cowrie/contracts
 
-A Hardhat-based template for developing Fully Homomorphic Encryption (FHE) enabled Solidity smart contracts using the
-FHEVM protocol by Zama.
+FHEVM smart contracts for **Cowrie — Confidential Group Treasury**. See the
+[root README](../../README.md) for the full project overview and deployed addresses.
 
-## Quick Start
+## Contracts
 
-For detailed instructions see:
-[FHEVM Hardhat Quick Start Tutorial](https://docs.zama.ai/protocol/solidity-guides/getting-started/quick-start-tutorial)
+- `base/ConfidentialPoolBase.sol` — shared core: holds the ERC-7984 token, centralizes ACL,
+  and the encrypted pull (`_pull`) / push (`_push`) rails.
+- `modes/SavingsCircle.sol` — rotating savings (ROSCA). Organizer-set encrypted fixed amount,
+  equal contributions, rotating pot, refund window, and dissolve (organizer or unanimous vote).
+- `modes/PayrollStreams.sol` — confidential payroll. Encrypted salaries, period-gated claims,
+  funded/collected totals, `removeEmployee`, and `stopAndReclaim`.
+- `modes/Crowdfund.sol` — crowdfunding. Encrypted contributions, public running total, and a
+  single goal-reached boolean revealed via self-relay public decryption.
+- `modes/*Factory.sol` — per-mode deployers + registries (titles/descriptions, 0.005 ETH
+  anti-spam stake on campaigns/streams, owner-withdrawable).
+- `mocks/ConfidentialUSDT.sol` — ERC-7984 test token with an open faucet.
 
-### Prerequisites
+## Commands
 
-- **Node.js**: Version 20 or higher
-- **npm or yarn/pnpm**: Package manager
-
-### Installation
-
-1. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-2. **Set up environment variables**
-
-   ```bash
-   npx hardhat vars set MNEMONIC
-
-   # Set your Infura API key for network access
-   npx hardhat vars set INFURA_API_KEY
-
-   # Optional: Set Etherscan API key for contract verification
-   npx hardhat vars set ETHERSCAN_API_KEY
-   ```
-
-3. **Compile and test**
-
-   ```bash
-   npm run compile
-   npm run test
-   ```
-
-4. **Deploy to local network**
-
-   ```bash
-   # Start a local FHEVM-ready node
-   npx hardhat node
-   # Deploy to local network
-   npx hardhat deploy --network localhost
-   ```
-
-5. **Deploy to Sepolia Testnet**
-
-   ```bash
-   # Deploy to Sepolia
-   npx hardhat deploy --network sepolia
-   # Verify contract on Etherscan
-   npx hardhat verify --network sepolia <CONTRACT_ADDRESS>
-   ```
-
-6. **Test on Sepolia Testnet**
-
-   ```bash
-   # Once deployed, you can run a simple test on Sepolia.
-   npx hardhat test --network sepolia
-   ```
-
-## 📁 Project Structure
-
-```
-fhevm-hardhat-template/
-├── contracts/           # Smart contract source files
-│   └── FHECounter.sol   # Example FHE counter contract
-├── deploy/              # Deployment scripts
-├── tasks/               # Hardhat custom tasks
-├── test/                # Test files
-├── hardhat.config.ts    # Hardhat configuration
-└── package.json         # Dependencies and scripts
+```bash
+pnpm compile        # compile + typechain
+pnpm test           # 21 tests on the FHEVM mock runtime
+pnpm deploy:sepolia # deploy token + three factories
 ```
 
-## 📜 Available Scripts
+Set secrets in `.env` (gitignored): `MNEMONIC`, `SEPOLIA_RPC_URL`, optional `ETHERSCAN_API_KEY`.
+Gas price is capped via `SEPOLIA_GAS_PRICE` (default 1 gwei).
 
-| Script             | Description              |
-| ------------------ | ------------------------ |
-| `npm run compile`  | Compile all contracts    |
-| `npm run test`     | Run all tests            |
-| `npm run coverage` | Generate coverage report |
-| `npm run lint`     | Run linting checks       |
-| `npm run clean`    | Clean build artifacts    |
+## License
 
-## 📚 Documentation
-
-- [FHEVM Documentation](https://docs.zama.ai/fhevm)
-- [FHEVM Hardhat Setup Guide](https://docs.zama.ai/protocol/solidity-guides/getting-started/setup)
-- [FHEVM Testing Guide](https://docs.zama.ai/protocol/solidity-guides/development-guide/hardhat/write_test)
-- [FHEVM Hardhat Plugin](https://docs.zama.ai/protocol/solidity-guides/development-guide/hardhat)
-
-## 📄 License
-
-This project is licensed under the BSD-3-Clause-Clear License. See the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/zama-ai/fhevm/issues)
-- **Documentation**: [FHEVM Docs](https://docs.zama.ai)
-- **Community**: [Zama Discord](https://discord.gg/zama)
-
----
-
-**Built with ❤️ by the Zama team**
+BSD-3-Clause-Clear.

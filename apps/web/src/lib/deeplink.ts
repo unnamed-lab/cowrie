@@ -19,8 +19,14 @@ export function useDeepLink(param: "circle" | "stream" | "campaign"): `0x${strin
     const v = url.searchParams.get(param);
     if (isAddress(v)) {
       setAddr(v);
-      url.searchParams.delete(param);
-      window.history.replaceState({}, "", url.pathname + (url.search ? url.search : "") + url.hash);
+      // Defer clearing so page-level logic (e.g. switching to the right tab) can
+      // still read the param this tick; then tidy the URL.
+      const t = setTimeout(() => {
+        const u = new URL(window.location.href);
+        u.searchParams.delete(param);
+        window.history.replaceState({}, "", u.pathname + u.search + u.hash);
+      }, 400);
+      return () => clearTimeout(t);
     }
   }, [param]);
   return addr;

@@ -31,9 +31,14 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== "undefined" && !localStorage.getItem("cowrie_guide_seen")) {
-      setGuideOpen(true);
-    }
+    if (typeof window === "undefined") return;
+    if (!localStorage.getItem("cowrie_guide_seen")) setGuideOpen(true);
+    // A shared deep link (?campaign / ?stream / ?circle) should open the matching
+    // tab. The mode component reads + clears the param shortly after, to load it.
+    const q = new URLSearchParams(window.location.search);
+    if (q.has("campaign")) setMode("pools");
+    else if (q.has("stream")) setMode("streams");
+    else if (q.has("circle")) setMode("circles");
   }, []);
   function closeGuide() {
     setGuideOpen(false);
