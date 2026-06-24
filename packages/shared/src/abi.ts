@@ -43,15 +43,49 @@ export const TOKEN_ABI = [
 ] as const;
 
 export const CIRCLE_ABI = [
+  // Everyone pays the organizer's fixed amount — contribute takes no amount.
+  { type: "function", name: "contribute", stateMutability: "nonpayable", inputs: [], outputs: [] },
   {
     type: "function",
-    name: "contribute",
+    name: "setFixedAmount",
     stateMutability: "nonpayable",
     inputs: [
       { name: "enc", type: "bytes32" },
       { name: "proof", type: "bytes" },
     ],
     outputs: [],
+  },
+  { type: "function", name: "amountSet", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bool" }] },
+  {
+    type: "function",
+    name: "fixedAmountHandle",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
+  { type: "function", name: "refundOpen", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bool" }] },
+  { type: "function", name: "openRefund", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "closeRefund", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "claimRefund", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  {
+    type: "function",
+    name: "refunded",
+    stateMutability: "view",
+    inputs: [
+      { name: "", type: "uint256" },
+      { name: "", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "contributed",
+    stateMutability: "view",
+    inputs: [
+      { name: "", type: "uint256" },
+      { name: "", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
   },
   { type: "function", name: "payout", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "round", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
