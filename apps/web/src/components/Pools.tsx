@@ -76,6 +76,8 @@ export function Pools() {
   // Custom load and creation state
   const [customAddressInput, setCustomAddressInput] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [campaignTitle, setCampaignTitle] = useState("");
+  const [campaignDescription, setCampaignDescription] = useState("");
   const [campaignBeneficiary, setCampaignBeneficiary] = useState("");
   const [campaignGoal, setCampaignGoal] = useState("5000");
   const [campaignDuration, setCampaignDuration] = useState("3600"); // default 1 hour in seconds
@@ -252,7 +254,8 @@ export function Pools() {
   async function handleCreateCampaign() {
     if (!token || !addresses?.CrowdfundFactory) return;
     try {
-      s.working("Deploying new crowdfunding campaign (requires 0.01 ETH stake)…");
+      if (!campaignTitle.trim()) throw new Error("A campaign title is required.");
+      s.working("Deploying new crowdfunding campaign (requires 0.005 ETH stake)…");
       const beneficiaryAddr = (campaignBeneficiary || address) as `0x${string}`;
       if (!beneficiaryAddr) throw new Error("Must specify a beneficiary address.");
 
@@ -263,8 +266,8 @@ export function Pools() {
         abi: CROWDFUND_FACTORY_ABI,
         address: addresses.CrowdfundFactory as `0x${string}`,
         functionName: "createCampaign",
-        args: [token, beneficiaryAddr, goalVal, durationSec],
-        value: 10000000000000000n, // 0.01 ETH
+        args: [token, beneficiaryAddr, goalVal, durationSec, campaignTitle.trim(), campaignDescription.trim()],
+        value: 5000000000000000n, // 0.005 ETH
       });
 
       s.done("New crowdfunding campaign deployed successfully!");
@@ -304,7 +307,32 @@ export function Pools() {
         {showCreateForm ? (
           <div className="rounded-2xl border border-sea/15 bg-ink/40 p-5 flex flex-col gap-4 animate-fade-in">
             <h3 className="text-sm font-bold text-sea uppercase tracking-wider">Start a New Harambee Campaign</h3>
-            
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold text-muted tracking-wider uppercase">
+                Title (what you&apos;re raising for)
+              </label>
+              <input
+                value={campaignTitle}
+                onChange={(e) => setCampaignTitle(e.target.value)}
+                placeholder="e.g. Clean water for Kibera school"
+                className="field text-sm"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold text-muted tracking-wider uppercase">
+                Description (optional — why it matters)
+              </label>
+              <textarea
+                value={campaignDescription}
+                onChange={(e) => setCampaignDescription(e.target.value)}
+                placeholder="Tell contributors what their donation supports…"
+                rows={2}
+                className="field text-sm w-full py-2 resize-none"
+              />
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold text-muted tracking-wider uppercase">
                 Beneficiary Address (receiver of funds on success)
@@ -344,7 +372,7 @@ export function Pools() {
                 <option value="2592000">30 Days</option>
               </select>
               <p className="text-[10px] text-muted leading-relaxed">
-                Deploying a campaign requires a <strong>0.01 ETH</strong> anti-spam stake and a minimum goal of <strong>1000 cUSDT</strong>.
+                Deploying a campaign requires a <strong>0.005 ETH</strong> anti-spam stake and a minimum goal of <strong>1000 cUSDT</strong>.
               </p>
             </div>
 

@@ -153,6 +153,18 @@ export const CIRCLE_ABI = [
     inputs: [],
     outputs: [{ name: "", type: "address" }],
   },
+  { type: "function", name: "potTotalHandle", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bytes32" }] },
+  { type: "function", name: "dissolved", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bool" }] },
+  { type: "function", name: "dissolveApprovals", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  {
+    type: "function",
+    name: "dissolveApproved",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  { type: "function", name: "dissolve", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "approveDissolve", stateMutability: "nonpayable", inputs: [], outputs: [] },
 ] as const;
 
 export const PAYROLL_ABI = [
@@ -206,6 +218,19 @@ export const PAYROLL_ABI = [
     inputs: [],
     outputs: [{ name: "", type: "address" }],
   },
+  { type: "function", name: "title", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "string" }] },
+  { type: "function", name: "description", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "string" }] },
+  { type: "function", name: "dissolved", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bool" }] },
+  { type: "function", name: "fundedHandle", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bytes32" }] },
+  { type: "function", name: "collectedHandle", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bytes32" }] },
+  {
+    type: "function",
+    name: "removeEmployee",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "employee", type: "address" }],
+    outputs: [],
+  },
+  { type: "function", name: "stopAndReclaim", stateMutability: "nonpayable", inputs: [], outputs: [] },
 ] as const;
 
 export const CROWDFUND_ABI = [
@@ -255,6 +280,15 @@ export const CROWDFUND_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "address" }],
+  },
+  { type: "function", name: "title", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "string" }] },
+  { type: "function", name: "description", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "string" }] },
+  {
+    type: "function",
+    name: "totalRaisedHandle",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }],
   },
 ] as const;
 
@@ -306,6 +340,8 @@ export const CROWDFUND_FACTORY_ABI = [
       { name: "beneficiary", type: "address" },
       { name: "goal", type: "uint64" },
       { name: "duration", type: "uint256" },
+      { name: "title", type: "string" },
+      { name: "description", type: "string" },
     ],
     outputs: [{ name: "", type: "address" }],
   },
@@ -340,6 +376,8 @@ export const PAYROLL_FACTORY_ABI = [
     inputs: [
       { name: "token", type: "address" },
       { name: "period", type: "uint256" },
+      { name: "title", type: "string" },
+      { name: "description", type: "string" },
     ],
     outputs: [{ name: "", type: "address" }],
   },

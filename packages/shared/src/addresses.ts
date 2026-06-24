@@ -10,9 +10,9 @@ export const ADDRESSES = {
   // circles/streams/campaigns are created by users through the factories.
   11155111: {
     ConfidentialUSDT: "0x3f2569498053a8c7266839Ab8a4256765004970f",
-    SavingsCircleFactory: "0x004525E048b76bbAC4af4E8caC5c2Ca9f7550D5f",
-    CrowdfundFactory: "0x138c6F5cF81da96aeb8B25EC61109687fdA98872",
-    PayrollStreamsFactory: "0xe0AFccDEC573DE5C96484795AF38a63C78255b2c",
+    SavingsCircleFactory: "0x57e6698810bCee8e50ec25c2e15754cAD2e7a978",
+    CrowdfundFactory: "0xaABd99a2530A8Ced89fb8e67f0746586088ba371",
+    PayrollStreamsFactory: "0x0283592e5EB6f5aa058d911e71ED560d4AaD0C0F",
   },
 } as const;
 

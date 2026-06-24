@@ -67,6 +67,8 @@ export function Streams() {
   // Custom load and creation state
   const [customAddressInput, setCustomAddressInput] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [streamTitle, setStreamTitle] = useState("");
+  const [streamDescription, setStreamDescription] = useState("");
   const [streamPeriodInput, setStreamPeriodInput] = useState("3600"); // default 1 hour in seconds
 
   // Main payroll inputs
@@ -217,22 +219,23 @@ export function Streams() {
   async function handleCreateStream() {
     if (!token || !addresses?.PayrollStreamsFactory) return;
     try {
-      s.working("Deploying new payroll stream (requires 0.01 ETH stake)…");
+      if (!streamTitle.trim()) throw new Error("A payroll title is required.");
+      s.working("Deploying new payroll stream (requires 0.005 ETH stake)…");
       const periodSec = BigInt(streamPeriodInput);
 
       await writeContractAsync({
         abi: PAYROLL_FACTORY_ABI,
         address: addresses.PayrollStreamsFactory as `0x${string}`,
         functionName: "createStream",
-        args: [token, periodSec],
-        value: 10000000000000000n, // 0.01 ETH
+        args: [token, periodSec, streamTitle.trim(), streamDescription.trim()],
+        value: 5000000000000000n, // 0.005 ETH
       });
 
       s.done("New payroll stream deployed successfully!");
       setShowCreateForm(false);
       refetchUserStreams();
     } catch (e) {
-      s.error((e as Error).message);
+      s.error(e);
     }
   }
 
@@ -258,7 +261,28 @@ export function Streams() {
         {showCreateForm ? (
           <div className="rounded-2xl border border-sea/15 bg-ink/40 p-5 flex flex-col gap-4 animate-fade-in">
             <h3 className="text-sm font-bold text-sea uppercase tracking-wider">Start a New Payroll Stream</h3>
-            
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold text-muted tracking-wider uppercase">Title</label>
+              <input
+                value={streamTitle}
+                onChange={(e) => setStreamTitle(e.target.value)}
+                placeholder="e.g. Acme Engineering — monthly"
+                className="field text-sm"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold text-muted tracking-wider uppercase">Description (optional)</label>
+              <textarea
+                value={streamDescription}
+                onChange={(e) => setStreamDescription(e.target.value)}
+                placeholder="Team, terms, notes…"
+                rows={2}
+                className="field text-sm w-full py-2 resize-none"
+              />
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold text-muted tracking-wider uppercase">
                 Claim Period (seconds)
@@ -275,8 +299,8 @@ export function Streams() {
                 <option value="2592000">30 Days (Monthly)</option>
               </select>
               <p className="text-[10px] text-muted leading-relaxed">
-                Employees can claim their encrypted salary only once per period. 
-                Creating a stream requires a <strong>0.01 ETH</strong> anti-spam stake.
+                Employees can claim their encrypted salary only once per period.
+                Creating a stream requires a <strong>0.005 ETH</strong> anti-spam stake.
               </p>
             </div>
 

@@ -23,3 +23,15 @@ export async function publicDecryptReached(handle: string): Promise<{
     decryptionProof: result.decryptionProof,
   };
 }
+
+/**
+ * Publicly decrypt a numeric handle (a publicly-decryptable euint) — used for the
+ * visible aggregate totals (campaign raised, circle pot, payroll funded/collected).
+ * The value is encrypted on-chain; this reveals it via the relayer.
+ */
+export async function publicDecryptUint(handle: string): Promise<bigint> {
+  const instance = await getFheInstance();
+  const result = await instance.publicDecrypt([handle]);
+  const v = result.clearValues[handle as keyof typeof result.clearValues];
+  return typeof v === "bigint" ? v : BigInt(v as unknown as string | number);
+}

@@ -26,7 +26,10 @@ const REVERT_MESSAGES: Record<string, string> = {
   "nothing to refund": "You have nothing to refund this round.",
   "already refunded": "You've already claimed your refund.",
   "circle already started": "The circle has already started — members are locked.",
-  "insufficient creation fee": "Creating this needs a 0.01 ETH stake.",
+  "insufficient creation fee": "Creating this needs a 0.005 ETH stake.",
+  "title required": "Please add a title.",
+  "payroll stopped": "This payroll has been stopped by the employer.",
+  dissolved: "This circle has been dissolved.",
   "goal too low": "The goal is below the minimum (1000 cUSDT).",
   "duration too short": "The duration is below the minimum.",
 };
