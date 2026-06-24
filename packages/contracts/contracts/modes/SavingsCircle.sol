@@ -27,8 +27,25 @@ contract SavingsCircle is ConfidentialPoolBase {
     euint64 private _pot; // encrypted accumulated pot for the current round
     mapping(uint256 => mapping(address => bool)) public contributed;
 
+    /// @notice The fixed per-round contribution every member pays (encrypted).
+    ///         Set by the organizer before the circle starts; members can decrypt
+    ///         it but the public cannot.
+    euint64 private _fixedAmount;
+    /// @notice Whether the organizer has set the fixed contribution amount.
+    bool public amountSet;
+
+    /// @notice When true, contributions/payout pause and members may self-refund
+    ///         their contribution for the current round.
+    bool public refundOpen;
+    mapping(uint256 => mapping(address => euint64)) private _paid; // actual amount pulled, per round/member
+    mapping(uint256 => mapping(address => bool)) public refunded;
+
     event Contributed(address indexed member, uint256 indexed round);
     event PaidOut(address indexed recipient, uint256 indexed round);
+    event AmountSet(address indexed organizer);
+    event RefundOpened(uint256 indexed round);
+    event RefundClosed(uint256 indexed round);
+    event Refunded(address indexed member, uint256 indexed round);
 
     string public name;
     address public immutable factory;
@@ -69,6 +86,11 @@ contract SavingsCircle is ConfidentialPoolBase {
         isMember[msg.sender] = true;
         members.push(msg.sender);
 
+        // If the fixed amount is already set, let the new member decrypt it too.
+        if (amountSet) {
+            FHE.allow(_fixedAmount, msg.sender);
+        }
+
         // Register user in the factory database if deployed via factory
         if (factory != address(0) && factory.code.length > 0) {
             try ISavingsCircleFactory(factory).registerUserJoin(msg.sender) {} catch {}
@@ -80,24 +102,82 @@ contract SavingsCircle is ConfidentialPoolBase {
         return members;
     }
 
-    /// @notice Contribute an encrypted amount to this round's pot.
+    /// @notice Set the fixed contribution amount everyone pays each round.
+    /// @dev Organizer-only, before the circle starts. The amount is encrypted;
+    ///      members are granted decryption so they know what they'll pay.
+    function setFixedAmount(externalEuint64 enc, bytes calldata proof) external {
+        require(msg.sender == organizer, "only organizer");
+        require(round == 0 && contributionsThisRound == 0, "circle already started");
+        euint64 amount = _ingest(enc, proof);
+        _fixedAmount = amount;
+        FHE.allowThis(_fixedAmount);
+        for (uint256 i; i < members.length; ++i) {
+            FHE.allow(_fixedAmount, members[i]);
+        }
+        amountSet = true;
+        emit AmountSet(msg.sender);
+    }
+
+    /// @notice Contribute the fixed amount to this round's pot — everyone pays equally.
     /// @dev Caller must have approved this circle as an ERC-7984 operator.
-    function contribute(externalEuint64 enc, bytes calldata proof) external {
+    function contribute() external {
+        require(amountSet, "fixed amount not set");
+        require(!refundOpen, "refund window open");
         require(isMember[msg.sender], "not a member");
         require(!contributed[round][msg.sender], "already contributed");
         contributed[round][msg.sender] = true;
         contributionsThisRound += 1;
 
-        euint64 amount = _ingest(enc, proof);
-        euint64 moved = _pull(msg.sender, amount);
+        euint64 moved = _pull(msg.sender, _fixedAmount);
+        _paid[round][msg.sender] = moved;
+        FHE.allowThis(_paid[round][msg.sender]);
+        FHE.allow(_paid[round][msg.sender], msg.sender);
+
         _pot = FHE.add(_pot, moved);
         FHE.allowThis(_pot);
         emit Contributed(msg.sender, round);
     }
 
+    /// @notice Open a refund window (organizer). Pauses contributions and payout so
+    ///         members can reclaim this round's contribution (crisis / non-compliance).
+    function openRefund() external {
+        require(msg.sender == organizer, "only organizer");
+        require(!refundOpen, "already open");
+        refundOpen = true;
+        emit RefundOpened(round);
+    }
+
+    /// @notice Close the refund window (organizer). Members who refunded may
+    ///         contribute again.
+    function closeRefund() external {
+        require(msg.sender == organizer, "only organizer");
+        require(refundOpen, "not open");
+        refundOpen = false;
+        emit RefundClosed(round);
+    }
+
+    /// @notice Reclaim your own contribution for the current round while the
+    ///         refund window is open (pull model, CEI-ordered).
+    function claimRefund() external {
+        require(refundOpen, "refund window closed");
+        require(contributed[round][msg.sender], "nothing to refund");
+        require(!refunded[round][msg.sender], "already refunded");
+
+        euint64 amount = _paid[round][msg.sender];
+        refunded[round][msg.sender] = true;
+        contributed[round][msg.sender] = false;
+        contributionsThisRound -= 1;
+        _pot = FHE.sub(_pot, amount);
+        FHE.allowThis(_pot);
+
+        _push(msg.sender, amount);
+        emit Refunded(msg.sender, round);
+    }
+
     /// @notice Pay the encrypted pot to this round's recipient, then rotate.
     /// @dev Requires every member to have contributed this round.
     function payout() external {
+        require(!refundOpen, "refund window open");
         require(contributionsThisRound == members.length, "round not complete");
         address recipient = members[round % members.length];
 
@@ -112,5 +192,15 @@ contract SavingsCircle is ConfidentialPoolBase {
 
     function memberCount() external view returns (uint256) {
         return members.length;
+    }
+
+    /// @notice Handle of the fixed contribution amount (decryptable by members).
+    function fixedAmountHandle() external view returns (euint64) {
+        return _fixedAmount;
+    }
+
+    /// @notice Handle of the caller's paid amount this round (decryptable by them).
+    function paidOf(uint256 round_, address who) external view returns (euint64) {
+        return _paid[round_][who];
     }
 }

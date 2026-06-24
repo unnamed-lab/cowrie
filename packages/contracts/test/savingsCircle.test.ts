@@ -39,36 +39,74 @@ describe("SavingsCircle", () => {
     await (await token.connect(bob).faucet(1_000)).wait();
     await (await token.connect(alice).setOperator(circleAddr, UNTIL)).wait();
     await (await token.connect(bob).setOperator(circleAddr, UNTIL)).wait();
+
+    // Organizer sets the fixed per-round contribution (encrypted) to 100.
+    const enc = await fhevm.createEncryptedInput(circleAddr, alice.address).add64(100).encrypt();
+    await (await circle.connect(alice).setFixedAmount(enc.handles[0], enc.inputProof)).wait();
   });
 
-  async function contribute(signer: HardhatEthersSigner, amount: number) {
-    const enc = await fhevm.createEncryptedInput(circleAddr, signer.address).add64(amount).encrypt();
-    await (await circle.connect(signer).contribute(enc.handles[0], enc.inputProof)).wait();
+  async function contribute(signer: HardhatEthersSigner) {
+    await (await circle.connect(signer).contribute()).wait();
   }
 
-  it("rotates the encrypted pot to the round's recipient", async () => {
-    await contribute(alice, 100);
-    await contribute(bob, 100);
+  it("requires the organizer to set the fixed amount before contributing", async () => {
+    const fresh = (await ethers.deployContract("SavingsCircle", [
+      tokenAddr,
+      alice.address,
+      "No-Amount Circle",
+      [alice.address, bob.address],
+    ])) as SavingsCircle;
+    await (await token.connect(alice).setOperator(await fresh.getAddress(), UNTIL)).wait();
+    await expect(fresh.connect(alice).contribute()).to.be.revertedWith("fixed amount not set");
+  });
+
+  it("rotates the encrypted pot to the round's recipient (equal fixed contributions)", async () => {
+    await contribute(alice);
+    await contribute(bob);
 
     expect(await circle.contributionsThisRound()).to.equal(2n);
 
     await (await circle.payout()).wait();
     expect(await circle.round()).to.equal(1n);
 
-    // Round 0 recipient is members[0] = alice: she contributed 100 and received the
-    // 200 pot, so net +100 over her starting 1000 → 1100. Bob is at 900.
+    // Round 0 recipient is members[0] = alice: she paid 100 and received the 200
+    // pot, so net +100 over her starting 1000 → 1100. Bob is at 900.
     expect(await userBalance(token, tokenAddr, alice)).to.equal(1_100n);
     expect(await userBalance(token, tokenAddr, bob)).to.equal(900n);
   });
 
   it("rejects a double contribution in the same round", async () => {
-    await contribute(alice, 100);
-    await expect(contribute(alice, 100)).to.be.revertedWith("already contributed");
+    await contribute(alice);
+    await expect(contribute(alice)).to.be.revertedWith("already contributed");
   });
 
   it("blocks payout until the round is complete", async () => {
-    await contribute(alice, 100);
+    await contribute(alice);
     await expect(circle.payout()).to.be.revertedWith("round not complete");
+  });
+
+  it("refunds a member's contribution during the refund window (pull)", async () => {
+    await contribute(alice);
+    await contribute(bob);
+
+    // Organizer opens the refund window; payout is blocked while open.
+    await (await circle.connect(alice).openRefund()).wait();
+    await expect(circle.payout()).to.be.revertedWith("refund window open");
+
+    // Bob reclaims his own contribution; pot and counters reflect it.
+    await (await circle.connect(bob).claimRefund()).wait();
+    expect(await circle.contributionsThisRound()).to.equal(1n);
+    expect(await userBalance(token, tokenAddr, bob)).to.equal(1_000n); // back to start
+
+    // Re-contributing is blocked while the window is open, allowed once closed.
+    await expect(circle.connect(bob).contribute()).to.be.revertedWith("refund window open");
+    await (await circle.connect(alice).closeRefund()).wait();
+    await (await circle.connect(bob).contribute()).wait();
+    expect(await circle.contributionsThisRound()).to.equal(2n);
+  });
+
+  it("only the organizer can open the refund window", async () => {
+    await expect(circle.connect(bob).openRefund()).to.be.revertedWith("only organizer");
   });
 
   it("enforces organizer authorization for dynamic membership joins", async () => {
